@@ -20,6 +20,16 @@ WORD_COUNT_TOLERANCE = 250  # acceptable range: 1000-1500
 MIN_WORD_COUNT = TARGET_WORD_COUNT - WORD_COUNT_TOLERANCE
 MIN_HEADINGS = 4
 
+# What the expansion pass asks for when length is the (or a) problem -- not
+# the bare MIN_WORD_COUNT floor itself. Live-verified: a retry asked for "at
+# least 1,000 words" landed at 995, five words short of its own stated
+# target. A model that treats a stated minimum as a loose target rather than
+# a hard line tends to stop just under it, so asking for a number well above
+# the true floor gives room for that undershoot without changing what
+# actually counts as passing. Stays within the rubric's own upper tolerance
+# (1,500) so hitting it exactly is still a valid essay, not an overshoot.
+EXPANSION_TARGET_WORD_COUNT = TARGET_WORD_COUNT + 100
+
 # `##\s` alone would also match `### Heading` (its first two characters are
 # also `##`) -- the `\s` only rejects that because the third character of an
 # H3 line is a literal `#`, not whitespace, so this correctly counts H2-only.
@@ -122,6 +132,19 @@ def build_expansion_prompt(draft: str, issues: list[str] | None = None) -> str:
         issues = draft_issues(draft)
     issues_text = "; ".join(issues) if issues else "not clearly meeting the rubric's hard requirements"
 
+    # Only ask for more length when length is actually one of the unmet
+    # requirements -- a draft being revised solely for e.g. a missing
+    # bulleted list shouldn't be pushed to pad further just because it's
+    # already being touched.
+    if needs_expansion(draft):
+        length_requirement = (
+            f"at least {EXPANSION_TARGET_WORD_COUNT} words -- do not stop at exactly "
+            f"{MIN_WORD_COUNT}; treat that as a line you must clear with room to spare, not a "
+            f"target to land on, since stopping right at it risks falling just short"
+        )
+    else:
+        length_requirement = f"at least {MIN_WORD_COUNT} words (already satisfied -- do not shorten it)"
+
     return f"""The draft below is {words} words. It does not yet satisfy the required rubric: {issues_text}.
 
 Revise it to fully satisfy the rubric. Keep the existing hook, argument, structure, and all \
@@ -129,7 +152,7 @@ Revise it to fully satisfy the rubric. Keep the existing hook, argument, structu
 that aren't supported by it. Deepen it by developing the existing points with more explanation, \
 concrete implications, and worked examples drawn from the material already cited.
 
-The finished piece must have: at least {MIN_WORD_COUNT} words, at least {MIN_HEADINGS} `## ` section \
+The finished piece must have: {length_requirement}, at least {MIN_HEADINGS} `## ` section \
 headings (exactly two hash marks, not three), at least one bulleted list, and a final section headed \
 exactly `## The Takeaway` (not `### The Takeaway` or any other level).
 

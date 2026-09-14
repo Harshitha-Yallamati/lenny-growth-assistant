@@ -2,9 +2,12 @@ from app.agent.orchestrator import _detect_skill, _retrieval_query
 from app.agent.skills import smalltalk_skill
 from app.agent.skills.artifact_skill import detect_artifact_format
 from app.agent.skills.ship30_skill import (
+    EXPANSION_TARGET_WORD_COUNT,
     MIN_HEADINGS,
     MIN_WORD_COUNT,
     NOT_GROUNDED_PROMPT,
+    TARGET_WORD_COUNT,
+    WORD_COUNT_TOLERANCE,
     build_expansion_prompt,
     build_system_prompt,
     count_h2_headings,
@@ -60,6 +63,32 @@ def test_expansion_prompt_carries_the_draft_and_the_requirements():
     assert draft in prompt, "the model needs the draft to expand rather than restart"
     assert str(MIN_WORD_COUNT) in prompt
     assert "## The Takeaway" in prompt
+
+
+def test_expansion_prompt_asks_for_a_buffer_above_the_bare_floor_when_short():
+    """Regression: live generation asked a retry for "at least 1,000 words"
+    and it landed at 995 -- five words short of its own stated target. A
+    model that treats a stated minimum as a loose target tends to stop just
+    under it, so the requested number must sit safely above the true floor,
+    not exactly on it. MIN_WORD_COUNT itself (the actual pass/fail line) is
+    unchanged -- only what the model is asked to aim for during a retry."""
+    short_draft = "word " * 500
+    prompt = build_expansion_prompt(short_draft)
+    assert str(EXPANSION_TARGET_WORD_COUNT) in prompt
+    assert EXPANSION_TARGET_WORD_COUNT > MIN_WORD_COUNT
+    # still a valid essay if hit exactly -- this isn't asking it to overshoot the rubric
+    assert EXPANSION_TARGET_WORD_COUNT <= TARGET_WORD_COUNT + WORD_COUNT_TOLERANCE
+    assert "do not invent claims" in prompt, "the buffer must not come at the cost of fabrication"
+
+
+def test_expansion_prompt_does_not_pad_length_when_already_sufficient():
+    """A retry triggered by a purely structural gap (e.g. no bulleted list)
+    on an already-long-enough draft shouldn't be pushed to grow further just
+    because it's being revised for an unrelated reason."""
+    long_enough_draft = "word " * (MIN_WORD_COUNT + 50)
+    prompt = build_expansion_prompt(long_enough_draft, issues=["no bulleted list"])
+    assert str(EXPANSION_TARGET_WORD_COUNT) not in prompt
+    assert "already satisfied" in prompt
 
 
 def test_ship30_refuses_instead_of_writing_an_ungrounded_essay():
