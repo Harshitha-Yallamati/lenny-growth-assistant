@@ -35,7 +35,7 @@ class ChatMessage(Base):
     content: Mapped[str] = mapped_column(Text)
     provider: Mapped[str | None] = mapped_column(String(20), nullable=True)
     model: Mapped[str | None] = mapped_column(String(100), nullable=True)
-    skill: Mapped[str | None] = mapped_column(String(30), nullable=True)  # "qa" | "ship30" | "artifact"
+    skill: Mapped[str | None] = mapped_column(String(30), nullable=True)  # "qa" | "ship30" | "artifact" | "smalltalk"
     citations: Mapped[list | None] = mapped_column(JSONB, nullable=True)
     artifact: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     grounded: Mapped[bool | None] = mapped_column(nullable=True)

@@ -1,4 +1,5 @@
 from app.agent.orchestrator import _detect_skill, _retrieval_query
+from app.agent.skills import smalltalk_skill
 from app.agent.skills.artifact_skill import detect_artifact_format
 from app.agent.skills.ship30_skill import (
     MIN_HEADINGS,
@@ -144,3 +145,32 @@ def test_draft_issues_empty_when_rubric_is_fully_satisfied():
     )
     assert len(good_draft.split()) >= MIN_WORD_COUNT
     assert not draft_issues(good_draft)
+
+
+def test_smalltalk_detects_bare_greetings():
+    """Regression: "hey" used to be routed through QA, where retrieval found
+    nothing and the assistant gave the generic "not covered" refusal --
+    technically honest, but reads as broken for a plain hello."""
+    assert smalltalk_skill.detect("hey") == smalltalk_skill.GREETING_RESPONSE
+    assert smalltalk_skill.detect("Hi!") == smalltalk_skill.GREETING_RESPONSE
+    assert smalltalk_skill.detect("  Good Morning.  ") == smalltalk_skill.GREETING_RESPONSE
+    assert smalltalk_skill.detect("hello") == smalltalk_skill.GREETING_RESPONSE
+
+
+def test_smalltalk_detects_thanks_separately_from_greetings():
+    assert smalltalk_skill.detect("thanks") == smalltalk_skill.THANKS_RESPONSE
+    assert smalltalk_skill.detect("Thank you!") == smalltalk_skill.THANKS_RESPONSE
+    assert smalltalk_skill.THANKS_RESPONSE != smalltalk_skill.GREETING_RESPONSE
+
+
+def test_smalltalk_does_not_swallow_a_real_question_with_a_greeting_prefix():
+    """"hey, what are retention curves" must still reach the QA skill -- only
+    a message that is *nothing but* a greeting/thanks should short-circuit."""
+    assert smalltalk_skill.detect("hey, what are retention curves") is None
+    assert smalltalk_skill.detect("hello, can you help with pricing") is None
+    assert smalltalk_skill.detect("thanks, and also what is PMF") is None
+
+
+def test_smalltalk_does_not_match_ordinary_questions():
+    assert smalltalk_skill.detect("what are retention curves") is None
+    assert smalltalk_skill.detect("how do I price a B2B product") is None

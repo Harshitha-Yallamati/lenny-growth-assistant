@@ -1,5 +1,5 @@
 export type Provider = "ollama" | "anthropic" | "openai";
-export type Skill = "qa" | "ship30" | "artifact";
+export type Skill = "qa" | "ship30" | "artifact" | "smalltalk";
 export type ArtifactFormat = "markdown" | "html";
 
 export interface Citation {

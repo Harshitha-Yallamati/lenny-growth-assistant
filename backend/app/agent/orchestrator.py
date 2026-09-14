@@ -7,7 +7,7 @@ from dataclasses import dataclass
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.agent.skills import artifact_skill, qa_skill, ship30_skill
+from app.agent.skills import artifact_skill, qa_skill, ship30_skill, smalltalk_skill
 from app.artifacts.sanitize import sanitize_html_artifact
 from app.core.config import get_settings
 from app.llm.base import ChatTurn, ProviderTimeoutError, ProviderUnavailableError
@@ -72,6 +72,24 @@ async def run_turn(
     requested_skill: str | None = None,
     requested_artifact_format: str | None = None,
 ) -> AgentResponse:
+    # Checked before skill routing and before resolving a provider at all --
+    # a greeting needs neither retrieval nor an LLM call, and only fires when
+    # the client didn't explicitly request a skill (an explicit "ship30"/
+    # "artifact" request is respected even if its text happens to be short).
+    if requested_skill is None:
+        smalltalk_response = smalltalk_skill.detect(user_message)
+        if smalltalk_response is not None:
+            return AgentResponse(
+                text=smalltalk_response,
+                skill="smalltalk",
+                provider="",
+                model="",
+                grounded=False,
+                fell_back=False,
+                citations=[],
+                artifact=None,
+            )
+
     settings = get_settings()
     skill = _detect_skill(user_message, requested_skill)
     resolved = await resolve_provider()
@@ -117,7 +135,13 @@ async def run_turn(
         )
         system_prompt = ship30_skill.build_system_prompt(user_message, chunks)
         try:
-            result = await provider.complete(system_prompt, history, user_message, max_tokens=3000)
+            result = await provider.complete(
+                system_prompt,
+                history,
+                user_message,
+                max_tokens=3000,
+                timeout_override=settings.ollama_ship30_timeout_seconds,
+            )
 
             # No grounding chunks means the model was told to refuse, not to
             # write an essay -- retrying or requirement-checking that refusal
@@ -145,6 +169,7 @@ async def run_turn(
                         [],
                         ship30_skill.build_expansion_prompt(result.text, original_issues),
                         max_tokens=4000,
+                        timeout_override=settings.ollama_ship30_timeout_seconds,
                     )
                     expanded_issues = ship30_skill.draft_issues(expanded.text)
                     # Only accept the retry if it actually improved things --

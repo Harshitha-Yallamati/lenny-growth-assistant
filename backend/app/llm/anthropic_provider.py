@@ -39,7 +39,10 @@ class AnthropicProvider(LLMProvider):
         history: list[ChatTurn],
         user_message: str,
         max_tokens: int = 1500,
+        timeout_override: float | None = None,
     ) -> ProviderResult:
+        # timeout_override is Ollama-specific (see base.py); the Anthropic
+        # SDK manages its own request timeout.
         if not self._client:
             raise ProviderUnavailableError("ANTHROPIC_API_KEY is not configured")
 

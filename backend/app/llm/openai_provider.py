@@ -24,7 +24,10 @@ class OpenAIProvider(LLMProvider):
         history: list[ChatTurn],
         user_message: str,
         max_tokens: int = 1500,
+        timeout_override: float | None = None,
     ) -> ProviderResult:
+        # timeout_override is Ollama-specific (see base.py); the OpenAI SDK
+        # manages its own request timeout.
         if not self._client:
             raise ProviderUnavailableError("OPENAI_API_KEY is not configured")
 

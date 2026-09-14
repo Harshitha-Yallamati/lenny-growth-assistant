@@ -37,10 +37,13 @@ class OllamaProvider(LLMProvider):
         history: list[ChatTurn],
         user_message: str,
         max_tokens: int = 1500,
+        timeout_override: float | None = None,
     ) -> ProviderResult:
         messages = [{"role": "system", "content": system_prompt}]
         messages += [{"role": t.role, "content": t.content} for t in history]
         messages.append({"role": "user", "content": user_message})
+
+        effective_timeout = timeout_override if timeout_override is not None else self.timeout_seconds
 
         try:
             # Local models can take 30-60s+ to cold-load into memory on modest
@@ -48,11 +51,12 @@ class OllamaProvider(LLMProvider):
             # llama3.1 during this build) -- a short timeout here reads as a
             # false "provider unavailable" for what's really just a slow but
             # working load. A long Ship 30 essay (~1,250 words) is far slower
-            # still: 300s was not enough on CPU-only hardware and surfaced as a
-            # bogus "Ollama is unavailable" error, hence the generous default.
+            # still, which is what timeout_override is for -- the orchestrator
+            # passes a larger, separately-configured budget for that call
+            # rather than raising this provider's timeout for every request.
             # keep_alive keeps the model resident between turns so only the
             # *first* message in a while pays the load cost.
-            async with httpx.AsyncClient(timeout=self.timeout_seconds) as client:
+            async with httpx.AsyncClient(timeout=effective_timeout) as client:
                 resp = await client.post(
                     f"{self.base_url}/api/chat",
                     json={
@@ -73,14 +77,15 @@ class OllamaProvider(LLMProvider):
                 "ollama_request_timeout",
                 extra={
                     "event": "ollama_request_timeout",
-                    "error": f"{type(exc).__name__} after {self.timeout_seconds}s",
+                    "error": f"{type(exc).__name__} after {effective_timeout}s",
                     "model": self.model,
                 },
             )
             raise ProviderTimeoutError(
-                f"Ollama did not respond within {self.timeout_seconds:.0f}s "
+                f"Ollama did not respond within {effective_timeout:.0f}s "
                 f"(model: {self.model}). Long generations on CPU-only hardware can exceed this; "
-                "raise OLLAMA_TIMEOUT_SECONDS or use a smaller model."
+                "raise OLLAMA_TIMEOUT_SECONDS (or OLLAMA_SHIP30_TIMEOUT_SECONDS for essays) "
+                "or use a smaller model."
             ) from exc
         except httpx.HTTPError as exc:
             logger.warning(

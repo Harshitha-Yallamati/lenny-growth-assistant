@@ -42,5 +42,12 @@ class LLMProvider(ABC):
         history: list[ChatTurn],
         user_message: str,
         max_tokens: int = 1500,
+        timeout_override: float | None = None,
     ) -> ProviderResult:
-        """Run one turn of chat completion. Raises ProviderUnavailableError on failure."""
+        """Run one turn of chat completion. Raises ProviderUnavailableError on failure.
+
+        timeout_override: use this timeout instead of the provider's default
+        for this call only (e.g. Ship 30's long-form generation needs more
+        time than an ordinary QA turn). Providers that don't support a
+        per-call timeout (the cloud SDKs manage their own) ignore it.
+        """

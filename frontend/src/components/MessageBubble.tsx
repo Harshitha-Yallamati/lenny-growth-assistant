@@ -34,7 +34,7 @@ export function MessageBubble({ message, onOpenArtifact }: Props) {
             {message.model ? ` · ${message.model}` : ""}
           </span>
         )}
-        {!isUser && message.grounded === false && (
+        {!isUser && message.grounded === false && message.skill !== "smalltalk" && (
           <span className="message-not-grounded">not grounded</span>
         )}
       </div>
