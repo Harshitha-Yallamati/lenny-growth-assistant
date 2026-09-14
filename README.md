@@ -65,6 +65,7 @@ All variables live in `.env` (copy from `.env.example`; **never commit `.env`**)
 | `LLM_PROVIDER` | yes | `ollama` | `ollama` \| `anthropic` \| `openai` — the default provider; can also be switched at runtime from the UI |
 | `OLLAMA_BASE_URL` | yes | `http://host.docker.internal:11434` | Where the backend finds your host's Ollama |
 | `OLLAMA_MODEL` | yes | `llama3.1` | Any model you've pulled |
+| `OLLAMA_TIMEOUT_SECONDS` | no | `600` | Raise if long generations time out on slow hardware |
 | `ANTHROPIC_API_KEY` | no | empty | Leave blank to skip; falls back to Ollama automatically if selected without a key |
 | `ANTHROPIC_MODEL` | no | `claude-sonnet-4-5-20250929` | |
 | `OPENAI_API_KEY` | no | empty | Same fallback behavior as Anthropic |
@@ -78,6 +79,20 @@ All variables live in `.env` (copy from `.env.example`; **never commit `.env`**)
 2. Pull a model that runs comfortably on your machine: `ollama pull llama3.1` (or `phi`, `qwen2.5:1.5b` for lighter hardware).
 3. Make sure Ollama is running (`ollama serve`, or it's already running as a background service after install).
 4. Leave `LLM_PROVIDER=ollama` in `.env` (the default) — no keys needed.
+
+### What to expect on local hardware
+
+Measured on a CPU-only Windows laptop with `llama3.1` (8B), so you know what's normal vs. broken:
+
+| Action | Measured time |
+|---|---|
+| First message after startup (model cold-load) | ~50–60s |
+| Subsequent grounded Q&A | ~20–40s |
+| Ship 30 essay (~1,250 words, two-pass) | **~18 minutes** |
+
+The Ship 30 skill is genuinely slow on CPU: it generates long-form output and then runs a second expansion pass, because an 8B local model reliably under-writes a 1,250-word target on the first attempt (measured: 546 words with no headings, versus 1,025 words with 6 headings after expansion). That's expected, not a hang.
+
+**If you're demoing or evaluating, don't wait on this path with `llama3.1`.** Either set `OLLAMA_MODEL=qwen2.5:1.5b` for a dramatically faster (lower-quality) run, use a cloud provider, or generate the essay ahead of time. `OLLAMA_TIMEOUT_SECONDS` defaults to 600s **per call** — that covers each pass individually, but raise it if you see the timeout message.
 
 ## Cloud model setup (optional)
 
@@ -120,6 +135,8 @@ Frontend has no automated test suite in this MVP (documented scope exclusion —
 |---|---|---|
 | `GET /api/health` shows `providers.ollama: false` | Ollama isn't running, or the backend container can't reach it | Run `ollama serve` on the host; on Linux hosts, replace `host.docker.internal` with your host IP in `.env` |
 | Chat replies "I couldn't reach the language model" | The active provider is down and there was nothing to fall back to (e.g. Ollama itself is down) | Check `ollama list`, ensure the model in `OLLAMA_MODEL` is actually pulled |
+| Chat replies "that took longer than Ollama was given" | A generation exceeded `OLLAMA_TIMEOUT_SECONDS` — the model is healthy, just slow | Raise the timeout, or set `OLLAMA_MODEL` to something smaller (`qwen2.5:1.5b`, `phi`) |
+| First message of a session takes ~1 minute | Ollama cold-loads the model into memory before generating | Expected. `keep_alive` keeps it resident for 30m, so later turns are much faster |
 | Answers ignore transcript content / "not grounded" on everything | Ingestion didn't run | Check `docker compose logs backend \| grep ingest`; run `docker compose exec backend python -m scripts.ingest_transcripts` |
 | `docker compose up` fails on `db` healthcheck | Port 5432 already in use by another Postgres | Stop the other instance, or change the host-side port mapping in `docker-compose.yml` |
 | Frontend shows "Could not reach the backend" | Backend container not up yet, or CORS mismatch | Confirm `docker compose ps` shows backend healthy; confirm `CORS_ORIGINS` includes the frontend's origin |

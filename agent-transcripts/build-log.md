@@ -49,6 +49,20 @@ This was a genuine product-breaking defect, not a test artifact — the demo's c
 
 Worth noting the sequencing: the retrieval bug was only findable *because* the skip-masking bug was fixed first. A suite that skips its integration tests by default is worse than having no suite, because it reports success.
 
+## 3b. The Ship 30 skill quietly missed its own brief
+
+With the timeout fixed, the Ship 30 skill finally completed end-to-end — and the output still didn't meet the assignment. Measured on `llama3.1`: **546 words, zero Markdown headings**, against a brief that asks for "approximately 1,250 words" with "skimmable formatting with headings, bullets, and selective bold emphasis."
+
+The code already *knew*: `word_count_within_tolerance()` was called on every result and wrote an `ship30_word_count_out_of_range` log line. It just didn't do anything about it. Detecting a requirement violation and then shipping the violation anyway is worse than not checking — it creates the appearance of a quality gate.
+
+Two changes:
+1. **Made the requirements explicit and checkable in the prompt** — a minimum word count stated as a hard floor ("this is a long-form essay, not a summary; do not stop early"), at least 4 `## ` headings, at least one bulleted list, and a required `## The Takeaway` section. Vague targets ("approximately 1,250 words") are easy for a small model to ignore.
+2. **Added a second expansion pass.** If the first draft lands under the floor, the skill re-prompts with the draft attached and asks for expansion that preserves the existing hook, argument, and `(Source: ...)` citations rather than restarting or padding. The expansion is only accepted if it actually came back longer — a model that returns something shorter has ignored the instruction, and the original draft is kept.
+
+Result: **546 words / 0 headings → 1,025 words / 6 headings / 7 bullets / takeaway section**, still grounded with citations.
+
+The honest cost is latency: the two-pass run takes **~18 minutes** on a CPU-only laptop with an 8B model. That number is now in the README (my first estimate of "5–10 minutes" was wrong, so it was corrected against the measured run rather than left as a plausible-sounding guess) along with the advice to use a smaller model or pre-generate for a demo.
+
 ## 4. Infrastructure failure: Docker Desktop crash, mid-build
 
 While bringing up `docker compose up -d db backend` for the first real end-to-end test, Docker Desktop crashed with:
