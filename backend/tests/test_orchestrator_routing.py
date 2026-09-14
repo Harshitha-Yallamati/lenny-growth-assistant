@@ -1,10 +1,15 @@
-from app.agent.orchestrator import _detect_skill
+from app.agent.orchestrator import _detect_skill, _retrieval_query
 from app.agent.skills.artifact_skill import detect_artifact_format
 from app.agent.skills.ship30_skill import (
+    MIN_HEADINGS,
     MIN_WORD_COUNT,
     NOT_GROUNDED_PROMPT,
     build_expansion_prompt,
     build_system_prompt,
+    count_h2_headings,
+    draft_issues,
+    has_bulleted_list,
+    has_takeaway_heading,
     needs_expansion,
     word_count_within_tolerance,
 )
@@ -66,3 +71,76 @@ def test_ship30_refuses_instead_of_writing_an_ungrounded_essay():
     assert prompt == NOT_GROUNDED_PROMPT
     assert "1,250" not in prompt
     assert "Hard requirements" not in prompt
+
+
+def test_counts_only_h2_headings_not_h3():
+    text = "## Real Heading\n\n### Not This One\n\n#### Or This\n\n## Another Real One"
+    assert count_h2_headings(text) == 2
+
+
+def test_detects_bulleted_and_numbered_lists():
+    assert has_bulleted_list("Some text\n\n- a point\n- another point\n")
+    assert has_bulleted_list("Some text\n\n1. a point\n2. another point\n")
+    assert not has_bulleted_list("Just prose, no lists anywhere in this draft.")
+
+
+def test_takeaway_heading_requires_exact_h2_level():
+    assert has_takeaway_heading("## Intro\n\n## The Takeaway\n\nDo the thing.")
+    assert not has_takeaway_heading("## Intro\n\n### The Takeaway\n\nDo the thing.")
+    assert not has_takeaway_heading("## Intro\n\n## Conclusion\n\nDo the thing.")
+
+
+def test_draft_issues_catches_structural_violations_word_count_alone_misses():
+    """Regression: a live-generated 1,081-word essay (within tolerance) used
+    zero `## ` headings and `### The Takeaway` instead of `## The Takeaway`.
+    Word-count checking alone reported no problem; draft_issues must not."""
+    padding = "Some prose to pad the length out and make this draft long enough. " * 150
+    on_length_but_broken_structure = (
+        f"**A Hook**\n\n### Problem\n\n{padding}\n\n### The Takeaway\n\nOne actionable idea."
+    )
+    assert len(on_length_but_broken_structure.split()) >= MIN_WORD_COUNT
+    issues = draft_issues(on_length_but_broken_structure)
+    assert any("headings" in issue for issue in issues)
+    assert any("Takeaway" in issue for issue in issues)
+    assert any("bulleted list" in issue for issue in issues)
+
+
+def test_retrieval_query_strips_skill_boilerplate_but_keeps_the_topic():
+    """Regression: the raw request "Write a Ship 30 essay on onboarding" was
+    used verbatim as the retrieval query, and Postgres's ts_rank scored it at
+    0.027 -- below the 0.03 relevance floor -- even though "onboarding" alone
+    scores 0.083 on this corpus. The skill-invocation phrasing must not
+    survive into the query; the topic must."""
+    cleaned = _retrieval_query("Write a Ship 30 essay on onboarding")
+    assert "onboarding" in cleaned
+    assert "ship 30" not in cleaned
+    assert "essay" not in cleaned
+    assert "write" not in cleaned
+
+
+def test_retrieval_query_strips_artifact_boilerplate():
+    cleaned = _retrieval_query(
+        "Generate an HTML page summarizing product-market fit signals"
+    )
+    assert "product-market fit signals" in cleaned
+    assert "html page" not in cleaned
+    assert "generate" not in cleaned
+
+
+def test_retrieval_query_falls_back_to_original_if_stripping_empties_it():
+    cleaned = _retrieval_query("Write an essay")
+    assert cleaned == "Write an essay"
+
+
+def test_draft_issues_empty_when_rubric_is_fully_satisfied():
+    sections = "\n\n".join(
+        f"## Section {i}\n\n" + ("Some prose to pad the length out. " * 60) for i in range(MIN_HEADINGS)
+    )
+    good_draft = (
+        "**A Hook**\n\n"
+        + sections
+        + "\n\n- a bullet point\n- another bullet point"
+        + "\n\n## The Takeaway\n\nOne actionable idea."
+    )
+    assert len(good_draft.split()) >= MIN_WORD_COUNT
+    assert not draft_issues(good_draft)

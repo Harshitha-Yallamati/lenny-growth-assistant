@@ -10,6 +10,7 @@ explicit rubric object -- not a one-off inline prompt string -- so the rules
 are visible, testable, and reusable.
 """
 
+import re
 from dataclasses import dataclass
 
 from app.rag.retrieval import RetrievedChunk, format_context
@@ -18,6 +19,13 @@ TARGET_WORD_COUNT = 1250
 WORD_COUNT_TOLERANCE = 250  # acceptable range: 1000-1500
 MIN_WORD_COUNT = TARGET_WORD_COUNT - WORD_COUNT_TOLERANCE
 MIN_HEADINGS = 4
+
+# `##\s` alone would also match `### Heading` (its first two characters are
+# also `##`) -- the `\s` only rejects that because the third character of an
+# H3 line is a literal `#`, not whitespace, so this correctly counts H2-only.
+_H2_HEADING_RE = re.compile(r"(?m)^##[ \t]+\S")
+_BULLET_RE = re.compile(r"(?m)^[ \t]*(?:[-*][ \t]+\S|\d+\.[ \t]+\S)")
+_TAKEAWAY_HEADING_RE = re.compile(r"(?mi)^##[ \t]+the takeaway[ \t]*$")
 
 
 @dataclass
@@ -96,27 +104,36 @@ Transcript excerpts to ground the essay in:
 {context}"""
 
 
-def build_expansion_prompt(draft: str) -> str:
-    """Second-pass prompt used when a draft comes back under length.
+def build_expansion_prompt(draft: str, issues: list[str] | None = None) -> str:
+    """Second-pass prompt used when a draft violates one of the rubric's hard
+    requirements -- under length, too few headings, no bulleted list, or a
+    missing/wrong-level takeaway heading.
 
     Small local models reliably under-write a ~1,250-word target -- llama3.1
-    returned 546 words with no headings on the first pass. Detecting that and
-    only logging it (the original behavior) still shipped an essay that missed
-    the brief, so the skill now does something about it.
+    returned 546 words with no headings on the first pass -- and separately,
+    a draft can hit the word count while still using zero `## ` headings or
+    an `### The Takeaway` instead of the required `## `. Detecting either and
+    only logging it (the original behavior) still shipped an essay that
+    missed the brief, so this pass names the actual problem and asks the
+    model to fix it rather than assuming "too short" is always the issue.
     """
     words = len(draft.split())
-    return f"""The draft below is {words} words, but the required essay is at least \
-{MIN_WORD_COUNT} words (target ~{TARGET_WORD_COUNT}).
+    if issues is None:
+        issues = draft_issues(draft)
+    issues_text = "; ".join(issues) if issues else "not clearly meeting the rubric's hard requirements"
 
-Expand it to meet the requirement. Keep the existing hook, argument, structure, and all \
+    return f"""The draft below is {words} words. It does not yet satisfy the required rubric: {issues_text}.
+
+Revise it to fully satisfy the rubric. Keep the existing hook, argument, structure, and all \
 (Source: ...) citations intact -- do not restate or summarize the draft, and do not invent claims \
 that aren't supported by it. Deepen it by developing the existing points with more explanation, \
 concrete implications, and worked examples drawn from the material already cited.
 
-Ensure the finished piece has at least {MIN_HEADINGS} `## ` section headings, at least one \
-bulleted list, and a final `## The Takeaway` section.
+The finished piece must have: at least {MIN_WORD_COUNT} words, at least {MIN_HEADINGS} `## ` section \
+headings (exactly two hash marks, not three), at least one bulleted list, and a final section headed \
+exactly `## The Takeaway` (not `### The Takeaway` or any other level).
 
-Return ONLY the finished, expanded essay in Markdown -- no preamble, no commentary.
+Return ONLY the finished, revised essay in Markdown -- no preamble, no commentary.
 
 DRAFT:
 {draft}"""
@@ -129,3 +146,39 @@ def word_count_within_tolerance(text: str) -> bool:
 
 def needs_expansion(text: str) -> bool:
     return len(text.split()) < MIN_WORD_COUNT
+
+
+def count_h2_headings(text: str) -> int:
+    return len(_H2_HEADING_RE.findall(text))
+
+
+def has_bulleted_list(text: str) -> bool:
+    return bool(_BULLET_RE.search(text))
+
+
+def has_takeaway_heading(text: str) -> bool:
+    return bool(_TAKEAWAY_HEADING_RE.search(text))
+
+
+def draft_issues(text: str) -> list[str]:
+    """Which of the rubric's hard requirements this draft is currently missing.
+
+    Word count was previously the only requirement checked in code -- the
+    "at least 4 `## ` headings" / "a bulleted list" / "`## The Takeaway`"
+    rules existed only as prompt instructions, so a model could violate them
+    (e.g. write `### The Takeaway` instead of `## The Takeaway`, or use zero
+    H2 headings) without it ever being detected. Reproduced live: a
+    1,081-word essay with the right length passed the only check that
+    existed, despite using zero `## ` headings and an H3 takeaway.
+    """
+    issues = []
+    words = len(text.split())
+    if words < MIN_WORD_COUNT:
+        issues.append(f"under {MIN_WORD_COUNT} words ({words})")
+    if count_h2_headings(text) < MIN_HEADINGS:
+        issues.append(f"fewer than {MIN_HEADINGS} `## ` headings ({count_h2_headings(text)})")
+    if not has_bulleted_list(text):
+        issues.append("no bulleted list")
+    if not has_takeaway_heading(text):
+        issues.append("missing a `## The Takeaway` heading")
+    return issues

@@ -18,6 +18,30 @@ logger = logging.getLogger(__name__)
 
 SHIP30_TRIGGERS = ["ship 30", "ship30", "atomic essay", "turn this into an essay", "write an essay"]
 
+# Phrases that identify a skill request but carry no topical signal for
+# retrieval. Postgres's ts_rank normalizes against how many of the query's
+# lexemes actually matched, so a verbose request like "Write a Ship 30 essay
+# on onboarding" scores *lower* than the bare topic "onboarding" alone --
+# measured on this corpus: 0.027 (below the 0.03 relevance floor) vs. 0.083.
+# Stripped only for the ship30/artifact skills, which route their raw request
+# text into the same query used to decide "not grounded" -- qa_skill's
+# retrieval (and its regression tests) are untouched by this.
+_RETRIEVAL_BOILERPLATE = [
+    "write a", "write an", "write", "generate", "create", "produce", "draft",
+    "render this as", "turn this into", "summarizing", "summarize", "essay",
+]
+
+
+def _retrieval_query(message: str) -> str:
+    """Strip skill-invocation boilerplate so retrieval scores the topic, not
+    the request phrasing around it. Falls back to the original message if
+    stripping would leave nothing to search on."""
+    lowered = message.lower()
+    for phrase in (*SHIP30_TRIGGERS, *artifact_skill.HTML_TRIGGERS, *artifact_skill.MARKDOWN_TRIGGERS, *_RETRIEVAL_BOILERPLATE):
+        lowered = lowered.replace(phrase, " ")
+    cleaned = " ".join(lowered.split())
+    return cleaned if cleaned else message
+
 
 @dataclass
 class AgentResponse:
@@ -57,7 +81,7 @@ async def run_turn(
         fmt = requested_artifact_format or artifact_skill.detect_artifact_format(user_message) or "markdown"
         chunks = await retrieve(
             db,
-            user_message,
+            _retrieval_query(user_message),
             top_k=settings.retrieval_top_k,
             min_rank=settings.retrieval_min_rank,
         )
@@ -87,7 +111,7 @@ async def run_turn(
     if skill == "ship30":
         chunks = await retrieve(
             db,
-            user_message,
+            _retrieval_query(user_message),
             top_k=settings.retrieval_top_k,
             min_rank=settings.retrieval_min_rank,
         )
@@ -96,45 +120,57 @@ async def run_turn(
             result = await provider.complete(system_prompt, history, user_message, max_tokens=3000)
 
             # No grounding chunks means the model was told to refuse, not to
-            # write an essay -- expanding or length-checking that refusal
-            # would only pressure it into padding/fabricating content to hit
-            # a word count it was never supposed to hit.
+            # write an essay -- retrying or requirement-checking that refusal
+            # would only pressure it into padding/fabricating content to meet
+            # requirements it was never supposed to meet.
             if chunks:
-                # Local models reliably under-write a ~1,250-word target, so a
-                # short draft gets one expansion pass rather than shipping an
-                # essay that misses the brief's length/structure requirements.
-                if ship30_skill.needs_expansion(result.text):
+                # A draft can violate the rubric's hard requirements in ways
+                # word count alone never catches -- reproduced live: a
+                # 1,081-word essay (within tolerance) that used zero `## `
+                # headings and `### The Takeaway` instead of `## `. One retry
+                # pass fires on *any* violation, not just under-length.
+                original_issues = ship30_skill.draft_issues(result.text)
+                if original_issues:
                     logger.info(
-                        "ship30_expanding_short_draft",
+                        "ship30_retrying_draft",
                         extra={
-                            "event": "ship30_expanding_short_draft",
+                            "event": "ship30_retrying_draft",
                             "provider": result.provider,
                             "model": result.model,
+                            "error": "; ".join(original_issues),
                         },
                     )
                     expanded = await provider.complete(
                         system_prompt,
                         [],
-                        ship30_skill.build_expansion_prompt(result.text),
+                        ship30_skill.build_expansion_prompt(result.text, original_issues),
                         max_tokens=4000,
                     )
-                    # Only accept the expansion if it actually improved things --
-                    # a model that returns something shorter has ignored the ask.
-                    if len(expanded.text.split()) > len(result.text.split()):
+                    expanded_issues = ship30_skill.draft_issues(expanded.text)
+                    # Only accept the retry if it actually improved things --
+                    # fewer unmet requirements, or the same count but longer
+                    # (a model that came back shorter with no other fix has
+                    # just ignored the ask).
+                    if len(expanded_issues) < len(original_issues) or (
+                        len(expanded_issues) == len(original_issues)
+                        and len(expanded.text.split()) > len(result.text.split())
+                    ):
                         result = expanded
         except ProviderUnavailableError as exc:
             return _error_response(
                 skill, provider.name, str(exc), timed_out=isinstance(exc, ProviderTimeoutError)
             )
 
-        if chunks and not ship30_skill.word_count_within_tolerance(result.text):
-            logger.info(
-                "ship30_word_count_out_of_range",
-                extra={
-                    "event": "ship30_word_count_out_of_range",
-                    "error": f"{len(result.text.split())} words",
-                },
-            )
+        if chunks:
+            remaining_issues = ship30_skill.draft_issues(result.text)
+            if remaining_issues:
+                logger.info(
+                    "ship30_requirements_unmet",
+                    extra={
+                        "event": "ship30_requirements_unmet",
+                        "error": "; ".join(remaining_issues),
+                    },
+                )
 
         return AgentResponse(
             text=result.text,
