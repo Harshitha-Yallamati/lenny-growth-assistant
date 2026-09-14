@@ -7,7 +7,7 @@ Provider = Literal["ollama", "anthropic", "openai"]
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+    model_config = SettingsConfigDict(env_file=(".env", "../.env"), extra="ignore")
 
     app_env: str = "development"
     log_level: str = "INFO"
