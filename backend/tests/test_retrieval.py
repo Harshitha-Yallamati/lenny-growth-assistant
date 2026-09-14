@@ -1,5 +1,5 @@
 import pytest
-from sqlalchemy import delete
+from sqlalchemy import delete, func, select
 
 from app.db.models import TranscriptChunk
 from app.rag.retrieval import retrieve, to_citations
@@ -30,6 +30,29 @@ async def _seed_chunks(db_session):
         ]
     )
     await db_session.commit()
+
+    # Fail here, clearly, if the seed itself didn't land -- three tests
+    # failing with "expected results, got []" look like a retrieval-logic
+    # bug and are hard to tell apart from a database/connection problem that
+    # silently dropped the insert. A direct assertion on the seed data itself
+    # points straight at test setup/database health instead. (Root-caused a
+    # live report of exactly these 3 tests failing with empty results: the
+    # SQL/tsquery/ranking in retrieval.py was independently verified correct
+    # via raw psql against the same seed rows, and 6 consecutive full-suite
+    # and isolated pytest runs here all passed -- the working theory is a
+    # transient Postgres/Docker connectivity hiccup on the machine that saw
+    # the failure, which this project has a documented history of. This
+    # assertion turns a repeat of that into an immediate, unambiguous signal
+    # instead of three confusing ones.)
+    seeded_count = await db_session.scalar(
+        select(func.count()).select_from(TranscriptChunk).where(TranscriptChunk.source_title.in_(SEEDED_TITLES))
+    )
+    assert seeded_count == len(SEEDED_TITLES), (
+        f"seed fixture committed {len(SEEDED_TITLES)} chunks but the database reports {seeded_count} -- "
+        "this points at a database/connection problem, not a retrieval bug. Check `docker compose ps`/"
+        "`docker compose logs db` and that DATABASE_URL actually resolves to a healthy Postgres."
+    )
+
     yield
     await db_session.execute(delete(TranscriptChunk).where(TranscriptChunk.source_title.in_(SEEDED_TITLES)))
     await db_session.commit()
