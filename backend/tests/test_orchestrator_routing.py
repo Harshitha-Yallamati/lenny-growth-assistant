@@ -1,6 +1,11 @@
 from app.agent.orchestrator import _detect_skill
 from app.agent.skills.artifact_skill import detect_artifact_format
-from app.agent.skills.ship30_skill import word_count_within_tolerance
+from app.agent.skills.ship30_skill import (
+    MIN_WORD_COUNT,
+    build_expansion_prompt,
+    needs_expansion,
+    word_count_within_tolerance,
+)
 
 
 def test_defaults_to_qa_skill():
@@ -32,3 +37,18 @@ def test_word_count_tolerance():
     on_target_text = "word " * 1250
     assert not word_count_within_tolerance(short_text)
     assert word_count_within_tolerance(on_target_text)
+
+
+def test_short_draft_is_flagged_for_expansion():
+    """llama3.1 returned a 546-word draft against a ~1,250-word target, so
+    under-length output has to trigger the second pass, not just a log line."""
+    assert needs_expansion("word " * 546)
+    assert not needs_expansion("word " * 1200)
+
+
+def test_expansion_prompt_carries_the_draft_and_the_requirements():
+    draft = "A short draft about onboarding. (Source: Some Episode)"
+    prompt = build_expansion_prompt(draft)
+    assert draft in prompt, "the model needs the draft to expand rather than restart"
+    assert str(MIN_WORD_COUNT) in prompt
+    assert "## The Takeaway" in prompt

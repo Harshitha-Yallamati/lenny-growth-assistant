@@ -39,7 +39,9 @@ class OpenAIProvider(LLMProvider):
                 max_tokens=max_tokens,
             )
         except openai.OpenAIError as exc:
-            logger.warning("openai_request_failed", extra={"event": "openai_request_failed"})
+            logger.warning(
+                "openai_request_failed", extra={"event": "openai_request_failed", "error": str(exc)}
+            )
             raise ProviderUnavailableError(f"OpenAI request failed: {exc}") from exc
 
         text = (response.choices[0].message.content or "").strip()

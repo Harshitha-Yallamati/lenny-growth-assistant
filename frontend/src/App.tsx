@@ -60,7 +60,7 @@ export default function App() {
     setError(null);
     try {
       const session = await api.createSession({ client_id: getOrCreateClientId() });
-      setActiveSession(session);
+      setActiveSession({ ...session, messages: [] });
       await refreshSessions();
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Failed to create a new session.");

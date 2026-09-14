@@ -21,7 +21,9 @@ class ResolvedProvider:
 def _build_providers() -> dict[Provider, LLMProvider]:
     settings = get_settings()
     return {
-        "ollama": OllamaProvider(settings.ollama_base_url, settings.ollama_model),
+        "ollama": OllamaProvider(
+            settings.ollama_base_url, settings.ollama_model, settings.ollama_timeout_seconds
+        ),
         "anthropic": AnthropicProvider(settings.anthropic_api_key, settings.anthropic_model),
         "openai": OpenAIProvider(settings.openai_api_key, settings.openai_model),
     }

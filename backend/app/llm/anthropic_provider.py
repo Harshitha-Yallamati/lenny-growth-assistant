@@ -54,7 +54,9 @@ class AnthropicProvider(LLMProvider):
                 messages=messages,
             )
         except anthropic.APIError as exc:
-            logger.warning("anthropic_request_failed", extra={"event": "anthropic_request_failed"})
+            logger.warning(
+                "anthropic_request_failed", extra={"event": "anthropic_request_failed", "error": str(exc)}
+            )
             raise ProviderUnavailableError(f"Anthropic request failed: {exc}") from exc
 
         text_parts = [block.text for block in response.content if block.type == "text"]

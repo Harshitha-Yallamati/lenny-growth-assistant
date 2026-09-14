@@ -16,7 +16,16 @@ class ProviderResult:
 
 
 class ProviderUnavailableError(RuntimeError):
-    """Raised when a provider cannot serve a request (missing key, network down, timeout)."""
+    """Raised when a provider cannot serve a request (missing key, network down)."""
+
+
+class ProviderTimeoutError(ProviderUnavailableError):
+    """The provider is reachable but didn't finish in time.
+
+    Distinct from ProviderUnavailableError so the user isn't told the model is
+    "unavailable" when it's actually up and merely slow -- that sends people
+    restarting a healthy Ollama instead of waiting or picking a smaller model.
+    """
 
 
 class LLMProvider(ABC):

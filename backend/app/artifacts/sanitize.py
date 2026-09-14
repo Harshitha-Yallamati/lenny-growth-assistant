@@ -8,7 +8,17 @@ survive sanitization, and even if one did, the iframe sandbox refuses to
 execute it and has no access to the parent page, cookies, or storage.
 """
 
+import re
+
 import bleach
+
+# bleach.clean() removes disallowed tags but, by design since bleach 2.x,
+# leaves their text content behind (so a stripped <script> tag would leave
+# its JS source sitting in the page as plain text). Strip script blocks
+# entirely, content included, before handing off to bleach for everything
+# else (event-handler attributes, javascript: URLs, disallowed tags).
+_SCRIPT_BLOCK_RE = re.compile(r"<script\b[^>]*>.*?</script\s*>", re.IGNORECASE | re.DOTALL)
+_SCRIPT_TAG_RE = re.compile(r"<script\b[^>]*/?>", re.IGNORECASE)
 
 ALLOWED_TAGS = [
     "div", "span", "p", "br", "hr",
@@ -30,8 +40,10 @@ ALLOWED_PROTOCOLS = ["http", "https", "data"]
 
 
 def sanitize_html_artifact(raw_html: str) -> str:
+    without_scripts = _SCRIPT_BLOCK_RE.sub("", raw_html)
+    without_scripts = _SCRIPT_TAG_RE.sub("", without_scripts)  # unclosed <script> tags
     return bleach.clean(
-        raw_html,
+        without_scripts,
         tags=ALLOWED_TAGS,
         attributes=ALLOWED_ATTRIBUTES,
         protocols=ALLOWED_PROTOCOLS,

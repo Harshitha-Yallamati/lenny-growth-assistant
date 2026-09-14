@@ -1,6 +1,11 @@
 fastapi==0.115.6
 uvicorn[standard]==0.34.0
 sqlalchemy==2.0.36
+# Required by SQLAlchemy's async engine. SQLAlchemy only auto-installs it on
+# some interpreter/platform combinations (it's skipped on newer Pythons that
+# lacked a wheel at pin time), so pin it explicitly -- without it every async
+# DB call fails with "the greenlet library is required to use this function".
+greenlet==3.1.1
 psycopg[binary]==3.2.3
 pydantic==2.10.4
 pydantic-settings==2.7.0

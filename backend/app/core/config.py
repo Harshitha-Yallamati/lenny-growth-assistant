@@ -19,6 +19,10 @@ class Settings(BaseSettings):
 
     ollama_base_url: str = "http://localhost:11434"
     ollama_model: str = "llama3.1"
+    # Generous by default: a ~1,250-word Ship 30 essay on CPU-only hardware can
+    # run for many minutes, and cutting it short surfaces as a misleading
+    # "Ollama is unavailable" error rather than "your model is slow".
+    ollama_timeout_seconds: float = 600.0
 
     anthropic_api_key: str = ""
     anthropic_model: str = "claude-sonnet-4-5-20250929"
@@ -28,6 +32,10 @@ class Settings(BaseSettings):
 
     retrieval_top_k: int = 5
     data_dir: str = "/app/data"
+    # Minimum ts_rank for a chunk to count as relevant. Measured on this
+    # corpus: on-topic questions score ~0.05-0.08, off-topic ones ~0.02.
+    # Raise it to make "not grounded" stricter, lower it for more recall.
+    retrieval_min_rank: float = 0.03
 
     @property
     def cors_origins_list(self) -> list[str]:

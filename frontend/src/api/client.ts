@@ -46,7 +46,7 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 
 export const api = {
   createSession: (userMetadata: Record<string, unknown> = {}) =>
-    request<SessionDetail>("/api/sessions", {
+    request<SessionSummary>("/api/sessions", {
       method: "POST",
       body: JSON.stringify({ user_metadata: userMetadata }),
     }),
