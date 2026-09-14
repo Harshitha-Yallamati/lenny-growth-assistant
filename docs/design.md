@@ -37,7 +37,8 @@ Everything is one screen — no routing/pages. Session state lives in React stat
 ## Responsive behavior
 
 - **Desktop (>900px):** three-column layout — sidebar, chat, optional artifact panel (45% width) side by side.
-- **Narrow (≤900px):** sidebar collapses to a slimmer rail; the artifact viewer becomes a full-screen overlay with its own close button rather than squeezing into a fraction of the width, since HTML artifacts need real estate to render meaningfully.
+- **Tablet (≤900px):** sidebar narrows to a slimmer rail; the artifact viewer becomes a full-screen overlay with its own close button rather than squeezing into a fraction of the width, since HTML artifacts need real estate to render meaningfully.
+- **Phone (≤700px):** the sidebar goes fully off-canvas behind a `☰` toggle in the header, with a tap-to-dismiss backdrop, and closes itself once a conversation is picked. This threshold was set from a measurement, not a guess: at a 411px viewport the persistent sidebar occupied 180px and left the conversation only 231px — the chat is the product, and it was losing 44% of a phone screen to navigation. The slide transition is disabled under `prefers-reduced-motion`.
 - All text areas and message bubbles use relative widths (`max-width` in px capped, but flexible below that) so they reflow rather than overflow.
 
 ## Accessibility considerations

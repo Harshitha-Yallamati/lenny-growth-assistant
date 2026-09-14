@@ -18,4 +18,5 @@ Run against `docker compose up --build` with Ollama running on the host and at l
 | 12 | Session persistence | Send a few messages, refresh the browser tab, reselect the same session | Full message history (including citations/artifacts) reloads correctly |
 | 13 | Delete session | Click the `×` on a sidebar session | Session disappears from the list; if it was active, the chat pane returns to the empty state |
 | 14 | Responsive layout | Resize the browser to ~600px wide with an artifact open | Artifact viewer becomes a full-screen overlay with a working close button; no horizontal scroll on the page body |
+| 14b | Off-canvas sidebar (phone) | Resize to ~400px wide | Sidebar is hidden; a `☰` button appears in the header; tapping it slides the sidebar in over a dark backdrop; tapping the backdrop or picking a conversation closes it; no horizontal scroll |
 | 15 | Health endpoint | Visit `http://localhost:8000/api/health` directly | JSON shows `database: "ok"` and `providers.ollama: true` when Ollama is running |

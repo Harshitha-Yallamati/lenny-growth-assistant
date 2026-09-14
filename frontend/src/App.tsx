@@ -34,6 +34,9 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [fellBack, setFellBack] = useState(false);
   const [openArtifactMessage, setOpenArtifactMessage] = useState<ChatMessage | null>(null);
+  // Only affects narrow viewports, where the sidebar becomes an off-canvas
+  // overlay instead of permanently eating ~45% of a phone-width screen.
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const refreshSessions = useCallback(async () => {
     try {
@@ -146,10 +149,24 @@ export default function App() {
         onSelect={handleSelectSession}
         onNewSession={handleNewSession}
         onDelete={handleDeleteSession}
+        isOpen={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
       />
+
+      {sidebarOpen && (
+        <div className="sidebar-backdrop" onClick={() => setSidebarOpen(false)} aria-hidden="true" />
+      )}
 
       <div className="main-column">
         <header className="app-header">
+          <button
+            className="sidebar-toggle"
+            onClick={() => setSidebarOpen((open) => !open)}
+            aria-label={sidebarOpen ? "Close conversation list" : "Open conversation list"}
+            aria-expanded={sidebarOpen}
+          >
+            ☰
+          </button>
           <h1>The Lenny Growth Assistant</h1>
           <ModelBadge config={config} onChangeProvider={handleChangeProvider} />
         </header>
