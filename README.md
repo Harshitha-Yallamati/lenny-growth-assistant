@@ -2,7 +2,7 @@
 
 A full-stack, RAG-powered conversational assistant over Lenny's Podcast transcripts. Ask grounded product/growth questions, generate Ship 30 for 30-style essays, and produce Markdown/HTML artifacts rendered in an in-app Artifact Viewer — all running locally on Ollama by default, with Anthropic/OpenAI as optional, config-only cloud providers.
 
-See also: [PRD](docs/PRD.md) · [design.md](docs/design.md) · [architecture.md](docs/architecture.md) · [manual test plan](tests/manual_test_plan.md) · [agent transcripts](agent-transcripts/)
+See also: [PRD](docs/PRD.md) · [design.md](docs/design.md) · [architecture.md](docs/architecture.md) · [manual test plan](tests/manual_test_plan.md) · [agent transcripts](agent-transcripts/) · [demo script](docs/demo-script.md)
 
 ## Architecture overview
 
