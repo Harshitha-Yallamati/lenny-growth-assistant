@@ -2,7 +2,9 @@ from app.agent.orchestrator import _detect_skill
 from app.agent.skills.artifact_skill import detect_artifact_format
 from app.agent.skills.ship30_skill import (
     MIN_WORD_COUNT,
+    NOT_GROUNDED_PROMPT,
     build_expansion_prompt,
+    build_system_prompt,
     needs_expansion,
     word_count_within_tolerance,
 )
@@ -52,3 +54,15 @@ def test_expansion_prompt_carries_the_draft_and_the_requirements():
     assert draft in prompt, "the model needs the draft to expand rather than restart"
     assert str(MIN_WORD_COUNT) in prompt
     assert "## The Takeaway" in prompt
+
+
+def test_ship30_refuses_instead_of_writing_an_ungrounded_essay():
+    """Regression: with no matching chunks, the skill used to hand the model
+    a rubric to fill in anyway ("(No transcript excerpts matched this
+    topic.)"), which a small model happily filled with fabricated statistics
+    and a fake citation instead of refusing. No chunks must produce the same
+    honest-refusal prompt the QA skill uses, not an essay-writing rubric."""
+    prompt = build_system_prompt("a topic the corpus doesn't cover", [])
+    assert prompt == NOT_GROUNDED_PROMPT
+    assert "1,250" not in prompt
+    assert "Hard requirements" not in prompt

@@ -95,34 +95,39 @@ async def run_turn(
         try:
             result = await provider.complete(system_prompt, history, user_message, max_tokens=3000)
 
-            # Local models reliably under-write a ~1,250-word target, so a
-            # short draft gets one expansion pass rather than shipping an
-            # essay that misses the brief's length/structure requirements.
-            if ship30_skill.needs_expansion(result.text):
-                logger.info(
-                    "ship30_expanding_short_draft",
-                    extra={
-                        "event": "ship30_expanding_short_draft",
-                        "provider": result.provider,
-                        "model": result.model,
-                    },
-                )
-                expanded = await provider.complete(
-                    system_prompt,
-                    [],
-                    ship30_skill.build_expansion_prompt(result.text),
-                    max_tokens=4000,
-                )
-                # Only accept the expansion if it actually improved things --
-                # a model that returns something shorter has ignored the ask.
-                if len(expanded.text.split()) > len(result.text.split()):
-                    result = expanded
+            # No grounding chunks means the model was told to refuse, not to
+            # write an essay -- expanding or length-checking that refusal
+            # would only pressure it into padding/fabricating content to hit
+            # a word count it was never supposed to hit.
+            if chunks:
+                # Local models reliably under-write a ~1,250-word target, so a
+                # short draft gets one expansion pass rather than shipping an
+                # essay that misses the brief's length/structure requirements.
+                if ship30_skill.needs_expansion(result.text):
+                    logger.info(
+                        "ship30_expanding_short_draft",
+                        extra={
+                            "event": "ship30_expanding_short_draft",
+                            "provider": result.provider,
+                            "model": result.model,
+                        },
+                    )
+                    expanded = await provider.complete(
+                        system_prompt,
+                        [],
+                        ship30_skill.build_expansion_prompt(result.text),
+                        max_tokens=4000,
+                    )
+                    # Only accept the expansion if it actually improved things --
+                    # a model that returns something shorter has ignored the ask.
+                    if len(expanded.text.split()) > len(result.text.split()):
+                        result = expanded
         except ProviderUnavailableError as exc:
             return _error_response(
                 skill, provider.name, str(exc), timed_out=isinstance(exc, ProviderTimeoutError)
             )
 
-        if not ship30_skill.word_count_within_tolerance(result.text):
+        if chunks and not ship30_skill.word_count_within_tolerance(result.text):
             logger.info(
                 "ship30_word_count_out_of_range",
                 extra={

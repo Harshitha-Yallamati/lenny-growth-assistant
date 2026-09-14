@@ -58,10 +58,19 @@ RUBRIC = Ship30Rubric(
 )
 
 
-def build_system_prompt(topic: str, chunks: list[RetrievedChunk]) -> str:
-    context = format_context(chunks)
-    context_block = context if context else "(No transcript excerpts matched this topic.)"
+NOT_GROUNDED_PROMPT = """You are the Lenny Growth Assistant's writing skill. No relevant excerpts were \
+found in the Lenny's Podcast transcript knowledge base for this essay topic. Tell the user plainly and \
+briefly that you can't write a grounded Ship 30 essay on this topic because the knowledge base doesn't \
+cover it. Do not write the essay, do not invent statistics, examples, or sources to fill the gap. Suggest \
+they try a topic the transcripts do cover (product-market fit, growth loops, activation, onboarding, \
+pricing, retention, PLG vs. sales, growth teams, positioning, prioritization)."""
 
+
+def build_system_prompt(topic: str, chunks: list[RetrievedChunk]) -> str:
+    if not chunks:
+        return NOT_GROUNDED_PROMPT
+
+    context = format_context(chunks)
     return f"""You are the Lenny Growth Assistant's writing skill, producing a Ship 30 for 30-style \
 essay of approximately {TARGET_WORD_COUNT} words (acceptable range: \
 {TARGET_WORD_COUNT - WORD_COUNT_TOLERANCE}-{TARGET_WORD_COUNT + WORD_COUNT_TOLERANCE} words) on: \
@@ -84,7 +93,7 @@ Hard requirements -- an essay that misses any of these is incomplete:
 Output the essay as Markdown. Do not include meta-commentary about the rubric itself.
 
 Transcript excerpts to ground the essay in:
-{context_block}"""
+{context}"""
 
 
 def build_expansion_prompt(draft: str) -> str:
