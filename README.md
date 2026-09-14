@@ -127,7 +127,26 @@ pip install -r requirements.txt
 pytest
 ```
 
+21 tests, 0 skips. They cover API contracts and error shapes, session/message persistence round-trips, retrieval ranking (including the AND-vs-OR regression and the relevance floor), skill routing, the Ship 30 length/structure gate, and artifact sanitization.
+
+> A note on the skips: this suite previously reported "10 passed, 7 skipped" and looked healthy. The 7 skips were every Postgres-backed test, hidden behind a `except Exception` that reported any setup failure as "database unreachable". Two real bugs were sitting behind it. The fixture now skips only on a genuine `OperationalError`, so **if you see skips, treat them as a problem, not as normal.**
+
 Frontend has no automated test suite in this MVP (documented scope exclusion — see PRD); a manual test plan covering the UI is in [tests/manual_test_plan.md](tests/manual_test_plan.md).
+
+### What was verified end-to-end
+
+Against a clean `git clone` + `docker compose up --build`, with Ollama/`llama3.1` on the host:
+
+| Check | Result |
+|---|---|
+| Auto-ingestion on first boot | 47 chunks from 10 sources, no manual step |
+| Grounded Q&A | Correct answer + inline `(Source: …)` + citation list |
+| Follow-up in session context | Resolved "which of *those* signals" from history |
+| Out-of-corpus question | `grounded: false`, honest refusal, no fabrication |
+| Ship 30 essay | 1,025 words, 6 headings, 7 bullets, takeaway, cited |
+| HTML artifact + XSS attempt | `<script>`, `onclick`, `alert(` all stripped; rendered in `sandbox=""` iframe with CSP `default-src 'none'` |
+| Cloud fallback with no API key | `fell_back_to_ollama: true`, answer still served |
+| Frontend production build | Builds clean from a fresh clone |
 
 ## Troubleshooting
 
