@@ -20,6 +20,7 @@ frontend/dist/
 # DB
 *.sqlite3
 pgdata/
+local_pgdata/
 
 # OS
 .DS_Store
