@@ -47,6 +47,20 @@ export function ArtifactViewer({ artifact, onClose }: Props) {
     navigator.clipboard.writeText(artifact!.content).catch(() => {});
   }
 
+  function handleDownload() {
+    const ext = isHtml ? "html" : "md";
+    const mime = isHtml ? "text/html" : "text/markdown";
+    const blob = new Blob([artifact!.content], { type: mime });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `lenny-artifact.${ext}`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  }
+
   return (
     <div className="artifact-viewer">
       {/* Header */}
@@ -91,7 +105,7 @@ export function ArtifactViewer({ artifact, onClose }: Props) {
           <button className="artifact-action-btn" onClick={handleCopy} title="Copy to clipboard">
             📋
           </button>
-          <button className="artifact-action-btn" title="Download">
+          <button className="artifact-action-btn" onClick={handleDownload} title="Download">
             ⬇
           </button>
           <button
