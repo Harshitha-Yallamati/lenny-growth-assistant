@@ -7,10 +7,16 @@ sqlalchemy==2.0.36
 # DB call fails with "the greenlet library is required to use this function".
 greenlet==3.1.1
 psycopg[binary]==3.2.3
-pydantic==2.10.4
+# >=2.12 required transitively: claude-agent-sdk pulls in `mcp`, which needs
+# pydantic>=2.12.0. The old 2.10.4 pin made the image unbuildable.
+pydantic==2.12.5
 pydantic-settings==2.7.0
 httpx==0.28.1
 anthropic==0.40.0
+# The agent layer for the Anthropic path (assignment §3.1). Note this package
+# drives the `claude` CLI as a subprocess, so the runtime also needs Node.js +
+# @anthropic-ai/claude-code -- both installed in backend/Dockerfile.
+claude-agent-sdk==0.2.152
 openai==1.58.1
 bleach==6.2.0
 python-dotenv==1.0.1

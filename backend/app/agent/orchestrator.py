@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.agent.skills import artifact_skill, qa_skill, ship30_skill, smalltalk_skill
 from app.artifacts.sanitize import sanitize_html_artifact
 from app.core.config import get_settings
+from app.llm import claude_agent_provider
 from app.llm.base import ChatTurn, ProviderTimeoutError, ProviderUnavailableError
 from app.llm.registry import resolve_provider
 from app.rag.retrieval import retrieve, to_citations
@@ -94,6 +95,17 @@ async def run_turn(
     skill = _detect_skill(user_message, requested_skill)
     resolved = await resolve_provider()
     provider = resolved.provider
+
+    # Bind this request's DB session to the Claude Agent SDK's retrieval tool.
+    # Each request runs in its own asyncio task, so the ContextVar set here is
+    # scoped to this turn and can't leak into a concurrent one. No-op for the
+    # providers that don't use SDK tool-calling.
+    async def _tool_retrieve(query: str):
+        return await retrieve(
+            db, query, top_k=settings.retrieval_top_k, min_rank=settings.retrieval_min_rank
+        )
+
+    claude_agent_provider.set_retriever(_tool_retrieve)
 
     if skill == "artifact":
         fmt = requested_artifact_format or artifact_skill.detect_artifact_format(user_message) or "markdown"

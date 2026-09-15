@@ -25,6 +25,7 @@ Secondary (operational): **p50 response latency** on the local Ollama path, and 
 **Included:**
 - FastAPI backend with sessions, messages, and a transcript knowledge base persisted in PostgreSQL.
 - A provider-agnostic LLM layer (Ollama default/mandatory, Anthropic and OpenAI as optional config-only swaps), switchable live from the UI, with automatic fallback to Ollama if a cloud provider is unavailable.
+- The agent layer for the Anthropic path built on the **Claude Agent SDK** (§3.1), with transcript retrieval exposed to it as a real SDK tool and its built-in shell/filesystem tools deliberately withheld via a strict allow-list — see architecture.md.
 - Grounded Q&A over the transcript corpus using PostgreSQL full-text search, with inline citations and honest "not covered" responses.
 - A Ship 30 for 30 writing skill with an explicit, researched rubric (not an ad hoc prompt).
 - A Markdown/HTML artifact-generation skill with a sandboxed, isolated in-app Artifact Viewer.
@@ -33,7 +34,6 @@ Secondary (operational): **p50 response latency** on the local Ollama path, and 
 
 **Intentionally excluded (see Risks & trade-offs for why):**
 - Vector-database/embedding-based semantic retrieval (used Postgres full-text search instead).
-- The `claude-agent-sdk` package specifically (used the native Anthropic Messages API tool-use pattern instead — see architecture.md).
 - Streaming token-by-token responses (plain request/response JSON).
 - Database migrations via Alembic (schema created via `SQLAlchemy.metadata.create_all` at startup).
 - Authentication, multi-user workspaces, and rate limiting.
@@ -69,7 +69,8 @@ Secondary (operational): **p50 response latency** on the local Ollama path, and 
 | **Data leakage** via HTML artifacts | See architecture.md's security section — server-side sanitization + iframe sandboxing with zero tokens is defense-in-depth against exfiltration via a malicious artifact. |
 | **Unsafe artifact rendering** | Same as above; Markdown renders through `react-markdown` without raw-HTML passthrough. |
 | **Retrieval recall** (lexical search misses paraphrased questions) | Accepted trade-off for zero extra infra; documented upgrade path to pgvector. |
-| **Cost/complexity of the full Claude Agent SDK** for an untested (no key at build time), optional path | Substituted the native Anthropic Messages API tool-use pattern; documented in architecture.md. |
+| **Claude Agent SDK path is untestable without an API key** | Implemented against the documented SDK API with unit coverage of the availability/fallback logic, but the live round-trip is unverified and stated as such. The registry degrades Agent SDK → native Messages API → Ollama, so a missing key or CLI cannot break the demo. |
+| **Agent SDK ships built-in Bash/file tools** | Running the Claude Code harness inside a web backend would otherwise expose shell and filesystem access on the server; `allowed_tools` is restricted to our retrieval tool only. |
 | **Small/illustrative transcript corpus** limits topic coverage | Acceptable for an MVP demo; ingestion path is corpus-size-agnostic so swapping in a full real corpus is a data change, not a code change. |
 
 ## 2. Implementation plan

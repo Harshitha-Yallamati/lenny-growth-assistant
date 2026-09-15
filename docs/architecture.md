@@ -94,13 +94,23 @@ Each skill module (`app/agent/skills/*.py`) owns its own system-prompt construct
 
 ## Model toggle (flexible LLM configuration)
 
-- `app/llm/base.py` defines one `LLMProvider` interface (`is_available()`, `complete()`); `ollama_provider.py`, `anthropic_provider.py`, `openai_provider.py` each implement it independently — the orchestrator and skills never import a specific provider.
+- `app/llm/base.py` defines one `LLMProvider` interface (`is_available()`, `complete()`); `ollama_provider.py`, `claude_agent_provider.py`, `anthropic_provider.py`, `openai_provider.py` each implement it independently — the orchestrator and skills never import a specific provider.
 - `app/core/config.py` (`LLM_PROVIDER` env var) sets the **default**; `app/core/runtime_state.py` holds an in-memory override so `POST /api/config` can switch providers live from the UI without a restart (intentionally not persisted — a restart reverts to the `.env` default, which is the right behavior for a demo toggle).
 - `app/llm/registry.py`'s `resolve_provider()` is the single fallback chokepoint: if the active provider is a cloud provider and `is_available()` is false (missing/invalid key, unreachable), it logs a `provider_fallback` event and transparently returns the Ollama provider instead. The API layer surfaces this as `fell_back_to_ollama: true` on the response, which the frontend renders as a banner.
 
-### Why the Anthropic path uses the native Messages API, not `claude-agent-sdk`
+### The agent layer: Claude Agent SDK (`app/llm/claude_agent_provider.py`)
 
-The assignment permits either the Claude Agent SDK or the Pi Coding Agent for the agent layer. The Claude Agent SDK communicates with the Claude Code CLI as a subprocess, which means bundling a Node.js runtime and the `@anthropic-ai/claude-code` CLI into this Python backend's Docker image — solely to serve an *optional* cloud path that was untestable during this build (no Anthropic key was available). Ollama is the mandatory, primary demo path. We instead implement the same agentic pattern (system prompt, multi-turn history, tool-use-capable) directly against Anthropic's native Messages API via the official `anthropic` Python SDK — the lower-level primitive the Agent SDK itself wraps for exactly this kind of single-service backend integration. This keeps the image small, keeps the optional path fully debuggable without a CLI subprocess boundary, and is called out here rather than silently substituted.
+The Anthropic path is built on the **Claude Agent SDK** (`claude-agent-sdk`), per §3.1. Two properties of that SDK drove the design.
+
+**It is Claude Code packaged as a library.** It doesn't call the HTTP API directly — it drives the `claude` CLI as a subprocess, so the runtime needs Node.js plus `@anthropic-ai/claude-code`. The backend image installs both (see `backend/Dockerfile`). Because that's a heavier contract than "pip install and go", `sdk_available()` verifies *both* halves — the Python package importable **and** the `claude` binary on PATH — and the registry degrades in three steps rather than failing: **Agent SDK → native Messages API (`anthropic_provider.py`) → Ollama.** A missing CLI can therefore never take the app down, and the mandatory local demo path is unaffected.
+
+**It ships built-in Read/Write/Edit/Bash/Glob/Grep tools.** That is the right default for a coding agent and the wrong one for a web backend — unconstrained, it would hand the model shell and filesystem access on the server. `ClaudeAgentOptions.allowed_tools` is therefore a strict allow-list naming exactly one tool, our own `mcp__lenny_kb__search_transcripts`. No `Bash`, no file read/write, nothing else is granted. This is a deliberate security boundary, not an oversight.
+
+Retrieval is exposed as a real SDK tool (`@tool` + `create_sdk_mcp_server`), so the agent can search the corpus itself rather than only consuming context handed to it — that's what makes this an agent layer rather than a completion wrapper. The per-request DB session reaches the tool callback through a `ContextVar` (each request runs in its own asyncio task, so it can't leak across concurrent turns). Sessions stay in Postgres rather than the CLI's own store — we deliberately don't use `continue_conversation`/`resume`, which would split the source of truth for conversation state.
+
+The orchestrator still pre-retrieves and injects context into the system prompt for *every* provider, so `grounded`/citations behave identically no matter which is active; the tool is additive. If the agent never calls it, behavior matches the other providers exactly.
+
+**Honest limitation:** no Anthropic API key was available during this build, so this path's live network round-trip has not been exercised. `backend/tests/test_claude_agent_provider.py` covers everything that decides whether the path is entered (key present, CLI present, allow-list namespacing, prompt construction) and the registry's fallback behavior — but not a real call. Ollama is the verified demo path.
 
 ## Security: artifact rendering
 

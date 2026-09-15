@@ -32,7 +32,7 @@ class Settings(BaseSettings):
     ollama_ship30_timeout_seconds: float = 1200.0
 
     anthropic_api_key: str = ""
-    anthropic_model: str = "claude-sonnet-4-5-20250929"
+    anthropic_model: str = "claude-opus-5"
 
     openai_api_key: str = ""
     openai_model: str = "gpt-4o-mini"

@@ -37,7 +37,7 @@ Full detail (DB schema, API contracts, retrieval/agent flow, security) is in [ar
   ollama pull llama3.1
   ```
   The backend container reaches host Ollama via `host.docker.internal`.
-- Optional, for cloud providers: an Anthropic and/or OpenAI API key.
+- Optional, for cloud providers: an Anthropic and/or OpenAI API key. (The Anthropic path uses the Claude Agent SDK, which needs Node.js + the Claude Code CLI — both are installed inside the backend image, nothing to do on your host.)
 
 ## Installation & one-command startup
 
@@ -67,7 +67,7 @@ All variables live in `.env` (copy from `.env.example`; **never commit `.env`**)
 | `OLLAMA_MODEL` | yes | `llama3.1` | Any model you've pulled |
 | `OLLAMA_TIMEOUT_SECONDS` | no | `600` | Raise if long generations time out on slow hardware |
 | `ANTHROPIC_API_KEY` | no | empty | Leave blank to skip; falls back to Ollama automatically if selected without a key |
-| `ANTHROPIC_MODEL` | no | `claude-sonnet-4-5-20250929` | |
+| `ANTHROPIC_MODEL` | no | `claude-opus-5` | |
 | `OPENAI_API_KEY` | no | empty | Same fallback behavior as Anthropic |
 | `OPENAI_MODEL` | no | `gpt-4o-mini` | |
 | `DATA_DIR` | no | `/app/data` | Transcript corpus location; only change for non-Docker local runs |
@@ -127,7 +127,7 @@ pip install -r requirements.txt
 pytest
 ```
 
-21 tests, 0 skips. They cover API contracts and error shapes, session/message persistence round-trips, retrieval ranking (including the AND-vs-OR regression and the relevance floor), skill routing, the Ship 30 length/structure gate, and artifact sanitization.
+56 tests, 0 skips. They cover API contracts and error shapes, session/message persistence round-trips, retrieval ranking (including the AND-vs-OR regression and the relevance floor), skill routing, smalltalk handling, provider config switching and fallback, Ollama timeout behavior, the Claude Agent SDK availability/degradation logic, the Ship 30 length/structure gate, and artifact sanitization.
 
 > A note on the skips: this suite previously reported "10 passed, 7 skipped" and looked healthy. The 7 skips were every Postgres-backed test, hidden behind a `except Exception` that reported any setup failure as "database unreachable". Two real bugs were sitting behind it. The fixture now skips only on a genuine `OperationalError`, so **if you see skips, treat them as a problem, not as normal.**
 
@@ -175,4 +175,4 @@ docker-compose.yml, .env.example
 
 ## Known scope exclusions (documented trade-offs)
 
-See the PRD's "Scope choices" and "Risks and trade-offs" sections for the full list and rationale. In brief: no auth/multi-user accounts, no streaming responses, no Alembic migrations (schema created at startup), retrieval uses Postgres full-text search rather than a vector database, and the Anthropic path uses the native Anthropic Messages API tool-use pattern rather than the `claude-agent-sdk` package (avoids bundling a Node/CLI runtime for an optional, untested-at-build-time path).
+See the PRD's "Scope choices" and "Risks and trade-offs" sections for the full list and rationale. In brief: no auth/multi-user accounts, no streaming responses, no Alembic migrations (schema created at startup), retrieval uses Postgres full-text search rather than a vector database, and no automated frontend tests. The Anthropic path is built on the **Claude Agent SDK**, which requires Node.js + the Claude Code CLI in the backend image; if either is absent the app degrades to the native Messages API and then to Ollama rather than failing.
