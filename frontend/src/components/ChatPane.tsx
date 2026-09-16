@@ -14,6 +14,13 @@ interface Props {
 
 type SkillChoice = "auto" | "qa" | "ship30" | "artifact-markdown" | "artifact-html";
 
+// Mirrors MAX_HISTORY_TURNS in backend/app/api/chat.py -- the number of prior
+// messages actually replayed to the model.
+const HISTORY_TURNS_SENT = 12;
+const CONTEXT_HINT =
+  "Approximate tokens (~4 chars each) in the conversation history replayed to the model. " +
+  "The backend sends at most the last 12 messages.";
+
 const QUICK_PROMPTS = [
   { label: "🔁 Ask Lenny", value: "auto" as SkillChoice, placeholder: "Ask about retention curves, growth loops, PMF benchmarks, pricing experiments…" },
   { label: "🚢 Ship 30 Essay (~1,250 words)", value: "ship30" as SkillChoice, placeholder: "Write a Ship 30 essay on…" },
@@ -73,6 +80,21 @@ export function ChatPane({ session, sending, error, fellBack, onSend, onOpenArti
   const currentPlaceholder =
     QUICK_PROMPTS.find((p) => p.value === skillChoice)?.placeholder ??
     "Ask about product-market fit, growth loops, pricing…";
+
+  // Real figures, not decoration. The backend replays at most the last
+  // MAX_HISTORY_TURNS messages as history (app/api/chat.py), so that slice is
+  // what actually reaches the model; the token count is a ~4-chars-per-token
+  // estimate over it. We deliberately don't print a context *ceiling*: it
+  // varies per model (llama3.1 is 128k, not the 8k this once hardcoded) and
+  // inventing one would be exactly the kind of fabricated number this product
+  // is supposed to avoid.
+  const historySlice = (session?.messages ?? []).slice(-HISTORY_TURNS_SENT);
+  const approxTokens = Math.round(
+    historySlice.reduce((sum, m) => sum + (m.content?.length ?? 0), 0) / 4
+  );
+  const contextLabel = session
+    ? `~${approxTokens >= 1000 ? `${(approxTokens / 1000).toFixed(1)}k` : approxTokens} tokens · ${historySlice.length} msg${historySlice.length === 1 ? "" : "s"}`
+    : "no session";
 
   return (
     <section className="chat-pane">
@@ -161,7 +183,9 @@ export function ChatPane({ session, sending, error, fellBack, onSend, onOpenArti
 
               {/* Context info */}
               <div className="chat-context-info">
-                <span className="chat-context-badge">1.8k / 8k context</span>
+                <span className="chat-context-badge" title={CONTEXT_HINT}>
+                  {contextLabel}
+                </span>
                 <span className="chat-enter-hint">Enter ↵ to send</span>
               </div>
 

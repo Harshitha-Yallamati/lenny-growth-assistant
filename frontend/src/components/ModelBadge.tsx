@@ -81,9 +81,19 @@ export function ModelBadge({ config, onChangeProvider, sessionTitle }: Props) {
           📚 Lenny Transcripts Active
         </div>
 
-        {/* Latency placeholder */}
-        <div className="status-pill status-pill-latency">
-          ⚡ Ready
+        {/* Real status of the provider that will actually serve the next turn.
+            This previously always read "Ready" regardless of provider health,
+            which is exactly backwards on the screen where an evaluator checks
+            whether the model is reachable. */}
+        <div
+          className="status-pill status-pill-latency"
+          title={
+            isActive
+              ? `${SHORT_LABELS[config.active_provider]} is reachable`
+              : `${SHORT_LABELS[config.active_provider]} is not reachable — requests fall back to local Ollama`
+          }
+        >
+          {isActive ? "⚡ Ready" : "⚠ Unavailable — falls back to Ollama"}
         </div>
 
         {/* User avatar */}

@@ -7,6 +7,7 @@ if sys.platform == "win32":
     asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
 from fastapi import FastAPI, HTTPException, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
@@ -54,6 +55,30 @@ async def http_exception_handler(request: Request, exc: HTTPException) -> JSONRe
     return JSONResponse(
         status_code=exc.status_code,
         content={"error": exc.__class__.__name__, "detail": exc.detail},
+    )
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(
+    request: Request, exc: RequestValidationError
+) -> JSONResponse:
+    """Keep 422s on the same {error, detail} contract as every other error.
+
+    FastAPI's default validation response is {"detail": [ {...}, ... ]} -- no
+    `error` key, and `detail` is a list of objects rather than a string. The
+    frontend does `body.detail ?? statusText` and renders the result straight
+    into its error banner, so a validation failure surfaced as a stringified
+    object instead of a readable message. Flatten it to "field: message" so
+    the contract documented in architecture.md actually holds for every
+    status code.
+    """
+    parts = []
+    for err in exc.errors():
+        location = ".".join(str(p) for p in err.get("loc", []) if p != "body") or "request"
+        parts.append(f"{location}: {err.get('msg', 'invalid value')}")
+    return JSONResponse(
+        status_code=422,
+        content={"error": "ValidationError", "detail": "; ".join(parts) or "Invalid request."},
     )
 
 

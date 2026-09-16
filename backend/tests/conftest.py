@@ -27,6 +27,13 @@ from sqlalchemy.exc import OperationalError  # noqa: E402
 from sqlalchemy.ext.asyncio import create_async_engine  # noqa: E402
 
 from app.db.base import Base  # noqa: E402
+# Importing the models is what registers the tables on Base.metadata. Without
+# it create_all() has nothing to create, so any subset of the suite that
+# doesn't happen to import a model itself ran against a database with no
+# tables and failed with 'relation "sessions" does not exist'. The full suite
+# passed only because other test modules imported models first -- an
+# ordering dependency, not isolation.
+from app.db import models  # noqa: E402,F401
 from app.core import runtime_state  # noqa: E402
 
 TEST_DATABASE_URL = os.environ["DATABASE_URL"]
