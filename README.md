@@ -66,6 +66,7 @@ All variables live in `.env` (copy from `.env.example`; **never commit `.env`**)
 | `OLLAMA_BASE_URL` | yes | `http://host.docker.internal:11434` | Where the backend finds your host's Ollama |
 | `OLLAMA_MODEL` | yes | `llama3.1` | Any model you've pulled |
 | `OLLAMA_TIMEOUT_SECONDS` | no | `600` | Raise if long generations time out on slow hardware |
+| `SHIP30_MAX_RETRIES` | no | `2` | Expansion passes allowed before shipping the best draft. Lower to `1` for a faster, less compliant demo |
 | `ANTHROPIC_API_KEY` | no | empty | Leave blank to skip. Falls back to Ollama if absent **or** if a live request fails (bad/expired key, rate limit) |
 | `ANTHROPIC_MODEL` | no | `claude-opus-5` | |
 | `OPENAI_API_KEY` | no | empty | Same fallback behavior as Anthropic |
@@ -88,9 +89,11 @@ Measured on a CPU-only Windows laptop with `llama3.1` (8B), so you know what's n
 |---|---|
 | First message after startup (model cold-load) | ~50–60s |
 | Subsequent grounded Q&A | ~20–40s |
-| Ship 30 essay (~1,250 words, two-pass) | **~18 minutes** |
+| Ship 30 essay (~1,250 words, up to 3 passes) | **~18–30 minutes** |
 
-The Ship 30 skill is genuinely slow on CPU: it generates long-form output and then runs a second expansion pass, because an 8B local model reliably under-writes a 1,250-word target on the first attempt (measured: 546 words with no headings, versus 1,025 words with 6 headings after expansion). That's expected, not a hang.
+The Ship 30 skill is genuinely slow on CPU: it generates long-form output, then re-runs expansion passes until the draft satisfies the rubric's hard requirements (length, `## ` headings, a bulleted list, a `## The Takeaway` section) or `SHIP30_MAX_RETRIES` is exhausted. An 8B local model needs them — measured drafts came in at 633–697 words against a 1,000-word floor, and often with zero `## ` headings until the prompt was given an explicit structural skeleton. That's expected, not a hang.
+
+Compliance is best-effort by design: the skill detects every unmet requirement and logs it (`ship30_requirements_unmet`), but it will ship the best draft it got rather than loop forever. A larger local model or a cloud provider clears the bar far more reliably than `llama3.1`.
 
 **If you're demoing or evaluating, don't wait on this path with `llama3.1`.** Either set `OLLAMA_MODEL=qwen2.5:1.5b` for a dramatically faster (lower-quality) run, use a cloud provider, or generate the essay ahead of time. `OLLAMA_TIMEOUT_SECONDS` defaults to 600s **per call** — that covers each pass individually, but raise it if you see the timeout message.
 

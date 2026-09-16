@@ -31,6 +31,13 @@ class Settings(BaseSettings):
     # exceed one pass, not the whole two-pass total.
     ollama_ship30_timeout_seconds: float = 1200.0
 
+    # How many expansion passes a Ship 30 draft may get before we ship what we
+    # have. An 8B local model drafts ~630-700 words against a 1,000-word floor
+    # and one pass clears it only about half the time; each pass costs minutes
+    # on CPU, so this is bounded. Raise it for higher compliance at the cost of
+    # latency, lower it to 1 for a faster (less compliant) demo.
+    ship30_max_retries: int = 2
+
     anthropic_api_key: str = ""
     anthropic_model: str = "claude-opus-5"
 

@@ -225,10 +225,19 @@ async def run_turn(
                 # A draft can violate the rubric's hard requirements in ways
                 # word count alone never catches -- reproduced live: a
                 # 1,081-word essay (within tolerance) that used zero `## `
-                # headings and `### The Takeaway` instead of `## `. One retry
-                # pass fires on *any* violation, not just under-length.
-                original_issues = ship30_skill.draft_issues(result.text)
-                if original_issues:
+                # headings and `### The Takeaway` instead of `## `. Retries
+                # fire on *any* violation, not just under-length.
+                #
+                # Why more than one pass: an 8B local model routinely drafts
+                # ~630-700 words against a 1,000-word floor, and a single
+                # expansion lands on the wrong side of it about half the time
+                # (measured: 697 -> 1,137 on one run, 633 -> 905 on the next).
+                # Each pass costs minutes on CPU, so this is bounded rather
+                # than open-ended, and it stops the moment the draft is clean.
+                for _ in range(settings.ship30_max_retries):
+                    original_issues = ship30_skill.draft_issues(result.text)
+                    if not original_issues:
+                        break
                     logger.info(
                         "ship30_retrying_draft",
                         extra={
@@ -249,12 +258,16 @@ async def run_turn(
                     # Only accept the retry if it actually improved things --
                     # fewer unmet requirements, or the same count but longer
                     # (a model that came back shorter with no other fix has
-                    # just ignored the ask).
+                    # just ignored the ask). If it didn't improve, stop:
+                    # another identical pass is unlikely to do better and
+                    # each one costs minutes.
                     if len(expanded_issues) < len(original_issues) or (
                         len(expanded_issues) == len(original_issues)
                         and len(expanded.text.split()) > len(result.text.split())
                     ):
                         result = expanded
+                    else:
+                        break
         except ProviderUnavailableError as exc:
             return _error_response(
                 skill, provider.name, str(exc), timed_out=isinstance(exc, ProviderTimeoutError)

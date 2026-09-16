@@ -107,6 +107,30 @@ Hard requirements -- an essay that misses any of these is incomplete:
 - At least {MIN_HEADINGS} Markdown section headings written as `## Heading`.
 - At least one bulleted list.
 - A final section headed `## The Takeaway`.
+- **Bold text is not a heading.** A line like `**Why onboarding fails**` does not count --
+  a section heading must start with `## ` at the beginning of the line.
+
+Fill in this exact structure. Keep every `## ` marker literally as written:
+
+**[One-line hook: name the audience and promise a specific payoff]**
+
+[Opening paragraph that frames the problem.]
+
+## [Heading naming the first idea]
+
+[Several paragraphs. Include a bulleted list somewhere in the essay.]
+
+## [Heading naming the second idea]
+
+[Several paragraphs, with a (Source: ...) citation.]
+
+## [Heading naming the third idea]
+
+[Several paragraphs, with a (Source: ...) citation.]
+
+## The Takeaway
+
+[One specific, actionable thing the reader can do immediately.]
 
 Output the essay as Markdown. Do not include meta-commentary about the rubric itself.
 
@@ -155,6 +179,16 @@ concrete implications, and worked examples drawn from the material already cited
 The finished piece must have: {length_requirement}, at least {MIN_HEADINGS} `## ` section \
 headings (exactly two hash marks, not three), at least one bulleted list, and a final section headed \
 exactly `## The Takeaway` (not `### The Takeaway` or any other level).
+
+If the draft uses **bold lines** to separate its sections, convert each of those into a real \
+`## ` heading. A bold line is not a heading -- the line must literally begin with `## `. Every \
+section break in the finished essay should look like:
+
+## A short heading naming the idea
+
+and the essay must end with:
+
+## The Takeaway
 
 Return ONLY the finished, revised essay in Markdown -- no preamble, no commentary.
 
