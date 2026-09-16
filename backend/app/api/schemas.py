@@ -77,3 +77,21 @@ class SourceDetailResponse(BaseModel):
     url: str | None
     total_chunks: int
     excerpts: list[SourceExcerpt]
+
+
+class SessionRenameRequest(BaseModel):
+    title: str = Field(min_length=1, max_length=200)
+
+
+class SessionSearchHit(BaseModel):
+    id: uuid.UUID
+    title: str | None
+    updated_at: datetime
+    matched_in: str  # "title" | "message"
+    snippet: str | None
+
+
+class KnowledgeBaseStats(BaseModel):
+    chunk_count: int
+    source_count: int
+    sources: list[str]

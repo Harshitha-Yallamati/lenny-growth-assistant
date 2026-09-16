@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useState } from "react";
 import "./App.css";
 import "./panels.css";
+import "./shell.css";
 import { api, ApiError } from "./api/client";
 import { ChatPane } from "./components/ChatPane";
 import { RightSidebar } from "./components/RightSidebar";
 import { ModelBadge } from "./components/ModelBadge";
 import { SessionSidebar } from "./components/SessionSidebar";
+import { StatusDashboard } from "./components/StatusDashboard";
 import type {
   ArtifactFormat,
   ChatMessage,
@@ -48,6 +50,7 @@ export default function App() {
   const [source, setSource] = useState<SourceDetail | null>(null);
   const [sourceLoading, setSourceLoading] = useState(false);
   const [sourceError, setSourceError] = useState<string | null>(null);
+  const [statusOpen, setStatusOpen] = useState(false);
 
   const refreshSessions = useCallback(async () => {
     try {
@@ -103,9 +106,29 @@ export default function App() {
     [activeSession, refreshSessions]
   );
 
-  const handleSend = useCallback(
-    async (message: string, skill: Skill | undefined, artifactFormat: ArtifactFormat | undefined) => {
-      if (!activeSession) return;
+  const handleRenameSession = useCallback(
+    async (id: string, title: string) => {
+      try {
+        await api.renameSession(id, title);
+        setActiveSession((prev) => (prev && prev.id === id ? { ...prev, title } : prev));
+        await refreshSessions();
+      } catch (e) {
+        setError(e instanceof ApiError ? e.message : "Failed to rename conversation.");
+      }
+    },
+    [refreshSessions]
+  );
+
+  // Takes the session id explicitly so a just-created session can be sent to
+  // immediately -- handleSend closes over activeSession, which is still null
+  // on the render where a quick-start action creates one.
+  const handleSendTo = useCallback(
+    async (
+      sessionId: string,
+      message: string,
+      skill: Skill | undefined,
+      artifactFormat: ArtifactFormat | undefined
+    ) => {
       setSending(true);
       setError(null);
       setFellBack(false);
@@ -127,9 +150,9 @@ export default function App() {
       );
 
       try {
-        const result = await api.sendMessage(activeSession.id, message, skill, artifactFormat);
+        const result = await api.sendMessage(sessionId, message, skill, artifactFormat);
         setFellBack(result.fell_back_to_ollama);
-        const fresh = await api.getSession(activeSession.id);
+        const fresh = await api.getSession(sessionId);
         setActiveSession(fresh);
         await refreshSessions();
       } catch (e) {
@@ -138,7 +161,37 @@ export default function App() {
         setSending(false);
       }
     },
-    [activeSession, refreshSessions]
+    [refreshSessions]
+  );
+
+  const handleSend = useCallback(
+    (message: string, skill: Skill | undefined, artifactFormat: ArtifactFormat | undefined) => {
+      if (!activeSession) return;
+      void handleSendTo(activeSession.id, message, skill, artifactFormat);
+    },
+    [activeSession, handleSendTo]
+  );
+
+  const handleQuickStart = useCallback(
+    async (prompt: string, mode: "auto" | "ship30" | "artifact") => {
+      setError(null);
+      try {
+        let session = activeSession;
+        if (!session) {
+          const created = await api.createSession({ client_id: getOrCreateClientId() });
+          session = { ...created, messages: [] };
+          setActiveSession(session);
+          await refreshSessions();
+        }
+        const skill: Skill | undefined =
+          mode === "ship30" ? "ship30" : mode === "artifact" ? "artifact" : undefined;
+        const fmt: ArtifactFormat | undefined = mode === "artifact" ? "html" : undefined;
+        await handleSendTo(session.id, prompt, skill, fmt);
+      } catch (e) {
+        setError(e instanceof ApiError ? e.message : "Failed to start that conversation.");
+      }
+    },
+    [activeSession, refreshSessions, handleSendTo]
   );
 
   const handleChangeProvider = useCallback(
@@ -198,6 +251,8 @@ export default function App() {
         onSelect={handleSelectSession}
         onNewSession={handleNewSession}
         onDelete={handleDeleteSession}
+        onRename={handleRenameSession}
+        onOpenStatus={() => setStatusOpen(true)}
         isOpen={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
       />
@@ -245,6 +300,7 @@ export default function App() {
             onOpenCitation={openCitation}
             followUps={followUps}
             onNewSession={handleNewSession}
+            onQuickStart={handleQuickStart}
           />
 
           {!rightOpen && (artifactHistory.length > 0 || activeSession) && (
@@ -277,6 +333,8 @@ export default function App() {
           )}
         </div>
       </div>
+
+      {statusOpen && <StatusDashboard config={config} onClose={() => setStatusOpen(false)} />}
     </div>
   );
 }

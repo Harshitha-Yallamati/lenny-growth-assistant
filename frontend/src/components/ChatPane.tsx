@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { ArtifactFormat, ChatMessage, SessionDetail, Skill } from "../types";
 import { MessageBubble } from "./MessageBubble";
+import { WelcomeScreen } from "./WelcomeScreen";
 
 interface Props {
   session: SessionDetail | null;
@@ -12,6 +13,7 @@ interface Props {
   onOpenCitation: (title: string) => void;
   followUps: string[];
   onNewSession: () => void;
+  onQuickStart: (prompt: string, mode: "auto" | "ship30" | "artifact") => void;
 }
 
 type SkillChoice = "auto" | "qa" | "ship30" | "artifact-markdown" | "artifact-html";
@@ -39,6 +41,7 @@ export function ChatPane({
   onOpenCitation,
   followUps,
   onNewSession,
+  onQuickStart,
 }: Props) {
   const [input, setInput] = useState("");
   const [skillChoice, setSkillChoice] = useState<SkillChoice>("auto");
@@ -112,30 +115,39 @@ export function ChatPane({
     <section className="chat-pane">
       <div className="chat-messages">
         {/* Empty State */}
-        {!session && (
-          <div className="chat-empty">
-            <div className="chat-empty-icon">🎙</div>
-            <div className="chat-empty-title">Ask Lenny anything</div>
-            <div className="chat-empty-subtitle">
-              Grounded answers from Lenny's podcast transcripts. Ask about
-              retention curves, growth loops, PMF benchmarks, pricing
-              experiments, and more.
-            </div>
-            <button className="chat-empty-btn" onClick={onNewSession}>
-              Start a new chat
-            </button>
-          </div>
+        {(!session || session.messages.length === 0) && !sending && (
+          <WelcomeScreen
+            onQuickStart={onQuickStart}
+            onNewSession={onNewSession}
+            hasSession={!!session}
+          />
         )}
 
         {/* Messages */}
-        {session?.messages.map((m) => (
-          <MessageBubble
-            key={m.id}
-            message={m}
-            onOpenArtifact={onOpenArtifact}
-            onOpenCitation={onOpenCitation}
-          />
-        ))}
+        {session?.messages.map((m, i) => {
+          // Regenerating means re-asking the user message immediately before
+          // this answer, with the same skill it was produced under.
+          const prior = i > 0 ? session.messages[i - 1] : null;
+          const canRegenerate = m.role === "assistant" && prior?.role === "user" && !sending;
+          return (
+            <MessageBubble
+              key={m.id}
+              message={m}
+              onOpenArtifact={onOpenArtifact}
+              onOpenCitation={onOpenCitation}
+              onRegenerate={
+                canRegenerate && prior
+                  ? () =>
+                      onSend(
+                        prior.content,
+                        m.skill === "ship30" || m.skill === "artifact" ? m.skill : undefined,
+                        m.artifact?.format
+                      )
+                  : null
+              }
+            />
+          );
+        })}
 
         {/* Thinking Indicator */}
         {sending && (

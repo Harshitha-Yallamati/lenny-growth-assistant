@@ -10,10 +10,10 @@ needs.
 """
 
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.schemas import SourceDetailResponse, SourceExcerpt
+from app.api.schemas import KnowledgeBaseStats, SourceDetailResponse, SourceExcerpt
 from app.db.models import TranscriptChunk
 from app.db.session import get_db
 
@@ -44,4 +44,26 @@ async def get_source(
         excerpts=[
             SourceExcerpt(chunk_index=c.chunk_index, content=c.content) for c in chunks
         ],
+    )
+
+
+@router.get("/stats", response_model=KnowledgeBaseStats)
+async def knowledge_base_stats(db: AsyncSession = Depends(get_db)) -> KnowledgeBaseStats:
+    """Corpus size for the status dashboard.
+
+    Read-only counts over the same `chunks` table retrieval reads; it does not
+    touch retrieval itself. Exposed here rather than folded into /api/health
+    so the existing health contract stays exactly as it is.
+    """
+    total = await db.execute(select(func.count()).select_from(TranscriptChunk))
+    titles = await db.execute(
+        select(TranscriptChunk.source_title)
+        .distinct()
+        .order_by(TranscriptChunk.source_title)
+    )
+    source_titles = [row[0] for row in titles.all()]
+    return KnowledgeBaseStats(
+        chunk_count=total.scalar() or 0,
+        source_count=len(source_titles),
+        sources=source_titles,
     )

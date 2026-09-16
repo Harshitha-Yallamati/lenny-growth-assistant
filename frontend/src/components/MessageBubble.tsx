@@ -7,6 +7,9 @@ interface Props {
   message: ChatMessage;
   onOpenArtifact: (message: ChatMessage) => void;
   onOpenCitation: (title: string) => void;
+  /** Re-asks the question that produced this answer. Null for the user's
+   *  own messages and when the preceding question can't be determined. */
+  onRegenerate: (() => void) | null;
 }
 
 function formatTime(isoString: string): string {
@@ -18,7 +21,7 @@ function formatTime(isoString: string): string {
   }
 }
 
-export function MessageBubble({ message, onOpenArtifact, onOpenCitation }: Props) {
+export function MessageBubble({ message, onOpenArtifact, onOpenCitation, onRegenerate }: Props) {
   const isUser = message.role === "user";
   const citations = message.citations ?? [];
   const [showGrounding, setShowGrounding] = useState(false);
@@ -115,6 +118,15 @@ export function MessageBubble({ message, onOpenArtifact, onOpenCitation }: Props
         {!isUser && isLongForm && (
           <button className="message-copy-btn" onClick={handleCopy} title="Copy this answer">
             {copied ? "✓ Copied" : "📋 Copy"}
+          </button>
+        )}
+        {!isUser && onRegenerate && message.skill !== "smalltalk" && (
+          <button
+            className="message-copy-btn"
+            onClick={onRegenerate}
+            title="Ask the same question again — the answer is appended as a new turn, the original is kept"
+          >
+            ↻ Regenerate
           </button>
         )}
       </div>

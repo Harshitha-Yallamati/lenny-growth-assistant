@@ -7,6 +7,9 @@ import type {
   Skill,
   ArtifactFormat,
   SourceDetail,
+  SessionSearchHit,
+  KnowledgeBaseStats,
+  HealthPayload,
 } from "../types";
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
@@ -77,6 +80,19 @@ export const api = {
 
   getSource: (title: string) =>
     request<SourceDetail>(`/api/sources?title=${encodeURIComponent(title)}`),
+
+  searchSessions: (q: string) =>
+    request<SessionSearchHit[]>(`/api/sessions/search?q=${encodeURIComponent(q)}`),
+
+  renameSession: (sessionId: string, title: string) =>
+    request<SessionSummary>(`/api/sessions/${sessionId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ title }),
+    }),
+
+  getKnowledgeBaseStats: () => request<KnowledgeBaseStats>("/api/sources/stats"),
+
+  getHealth: () => request<HealthPayload>("/api/health"),
 
   getConfig: () => request<ConfigPayload>("/api/config"),
 

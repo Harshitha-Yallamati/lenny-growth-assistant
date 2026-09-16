@@ -64,6 +64,29 @@ export interface ArtifactHistoryEntry {
 /** What the right sidebar is currently showing. */
 export type RightPanelView = "artifact" | "source" | "history";
 
+export interface SessionSearchHit {
+  id: string;
+  title: string | null;
+  updated_at: string;
+  matched_in: "title" | "message";
+  snippet: string | null;
+}
+
+export interface KnowledgeBaseStats {
+  chunk_count: number;
+  source_count: number;
+  sources: string[];
+}
+
+export interface HealthPayload {
+  status: string;
+  components: {
+    database: string;
+    providers: Record<string, boolean>;
+    active_provider: string;
+  };
+}
+
 export interface ConfigPayload {
   active_provider: Provider;
   configured_default: Provider;
