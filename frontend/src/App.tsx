@@ -24,6 +24,15 @@ import { suggestFollowUps } from "./followups";
 
 const CLIENT_ID_KEY = "lenny-growth-assistant-client-id";
 
+// Both panels start open on a screen wide enough to show them alongside the
+// chat, and start closed where they'd cover it instead (each is a
+// full-screen overlay below its own breakpoint -- 700px for the left rail,
+// 900px for the right panel, matching the media queries in App.css/panels.css).
+function opensByDefault(minWidth: number): boolean {
+  if (typeof window === "undefined") return true;
+  return window.innerWidth > minWidth;
+}
+
 function getOrCreateClientId(): string {
   let id = localStorage.getItem(CLIENT_ID_KEY);
   if (!id) {
@@ -41,10 +50,10 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [fellBack, setFellBack] = useState(false);
   const [openArtifactMessage, setOpenArtifactMessage] = useState<ChatMessage | null>(null);
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(() => opensByDefault(700));
 
   // Right panel: artifact viewer / citation source preview / artifact history
-  const [rightOpen, setRightOpen] = useState(false);
+  const [rightOpen, setRightOpen] = useState(() => opensByDefault(900));
   const [rightView, setRightView] = useState<RightPanelView>("artifact");
   const [sourceTitle, setSourceTitle] = useState<string | null>(null);
   const [source, setSource] = useState<SourceDetail | null>(null);
@@ -245,6 +254,7 @@ export default function App() {
 
   return (
     <div className="app-shell">
+      {sidebarOpen && (
       <SessionSidebar
         sessions={sessions}
         activeSessionId={activeSession?.id ?? null}
@@ -256,6 +266,7 @@ export default function App() {
         isOpen={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
       />
+      )}
 
       {sidebarOpen && (
         <div
@@ -303,7 +314,7 @@ export default function App() {
             onQuickStart={handleQuickStart}
           />
 
-          {!rightOpen && (artifactHistory.length > 0 || activeSession) && (
+          {!rightOpen && (
             <button
               className="right-sidebar-reopen"
               onClick={() => setRightOpen(true)}

@@ -412,3 +412,31 @@
     grid-column: 2;
   }
 }
+
+/* ============================================================
+   Collapsible panels on desktop
+
+   Above 700px the left rail used to be permanently visible -- the ☰ toggle
+   was hidden and `.sidebar-open` did nothing, so there was no way to reclaim
+   that 240px. These rules make the toggle meaningful at every width: closed
+   collapses the rail to zero width (it still participates in layout, so the
+   chat simply widens), open restores it.
+
+   Scoped to min-width:701px so the ≤700px overlay behaviour in App.css --
+   fixed position, translateX, backdrop -- is left exactly as it was.
+   ============================================================ */
+
+@media (min-width: 701px) {
+  /* The rail used to be permanently visible above 700px -- the toggle was
+     hidden and `.sidebar-open` did nothing, so there was no way to reclaim
+     that 240px. The toggle is now meaningful at every width.
+
+     Collapsing it with `width: 0` was tried first and doesn't work: the
+     rail's children have intrinsic minimum widths, so it bottomed out around
+     70px as a squashed, unreadable stub rather than disappearing. App.tsx
+     unmounts the element instead, which is what the right panel already
+     does and is deterministic. */
+  .sidebar-toggle {
+    display: block;
+  }
+}

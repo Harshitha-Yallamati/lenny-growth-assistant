@@ -46,7 +46,10 @@ export function RightSidebar({
   onOpenHistoryEntry,
 }: Props) {
   const tabs: { id: RightPanelView; label: string; badge?: number; enabled: boolean }[] = [
-    { id: "artifact", label: "Artifact", enabled: artifact !== null },
+    // Always selectable: with no artifact open it shows a short "how to
+    // generate one" state, which is more useful on first load than a
+    // disabled tab that is nonetheless the active view.
+    { id: "artifact", label: "Artifact", enabled: true },
     { id: "source", label: "Source", enabled: sourceTitle !== null },
     { id: "history", label: "History", badge: history.length, enabled: true },
   ];
