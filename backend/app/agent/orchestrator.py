@@ -11,8 +11,14 @@ from app.agent.skills import artifact_skill, qa_skill, ship30_skill, smalltalk_s
 from app.artifacts.sanitize import sanitize_html_artifact
 from app.core.config import get_settings
 from app.llm import claude_agent_provider
-from app.llm.base import ChatTurn, ProviderTimeoutError, ProviderUnavailableError
-from app.llm.registry import resolve_provider
+from app.llm.base import (
+    ChatTurn,
+    LLMProvider,
+    ProviderResult,
+    ProviderTimeoutError,
+    ProviderUnavailableError,
+)
+from app.llm.registry import ResolvedProvider, get_provider, resolve_provider
 from app.rag.retrieval import retrieve, to_citations
 
 logger = logging.getLogger(__name__)
@@ -54,6 +60,54 @@ class AgentResponse:
     fell_back: bool
     citations: list[dict]
     artifact: dict | None
+
+
+@dataclass
+class _ProviderCall:
+    result: ProviderResult
+    provider: LLMProvider
+    fell_back: bool
+
+
+async def _complete_with_runtime_fallback(
+    resolved: ResolvedProvider,
+    system_prompt: str,
+    history: list[ChatTurn],
+    user_message: str,
+    **kwargs,
+) -> _ProviderCall:
+    """Call the resolved provider, dropping to Ollama if a *live* request fails.
+
+    `resolve_provider()` only pre-checks configuration -- for the cloud
+    providers that means "is a key set at all". So a key that exists but is
+    expired, revoked, rate-limited, or paired with a wrong model name passes
+    that check, routes to the cloud, and only fails once the request is in
+    flight. That is the most likely real cloud failure, and without this the
+    user got an apology instead of an answer, contradicting the documented
+    behavior ("if the key is missing *or a request fails* ... automatically
+    falls back to Ollama").
+
+    Ollama itself has nothing to fall back to, so its failures propagate to
+    the caller's error handling unchanged.
+    """
+    provider = resolved.provider
+    try:
+        result = await provider.complete(system_prompt, history, user_message, **kwargs)
+        return _ProviderCall(result=result, provider=provider, fell_back=resolved.fell_back)
+    except ProviderUnavailableError as exc:
+        if provider.name == "ollama":
+            raise
+        logger.warning(
+            "provider_runtime_fallback",
+            extra={
+                "event": "provider_runtime_fallback",
+                "provider": provider.name,
+                "error": f"{type(exc).__name__}: {exc}",
+            },
+        )
+        ollama = get_provider("ollama")
+        result = await ollama.complete(system_prompt, history, user_message, **kwargs)
+        return _ProviderCall(result=result, provider=ollama, fell_back=True)
 
 
 def _detect_skill(message: str, requested_skill: str | None) -> str:
@@ -117,11 +171,14 @@ async def run_turn(
         )
         system_prompt = artifact_skill.build_system_prompt(fmt, chunks)
         try:
-            result = await provider.complete(system_prompt, history, user_message, max_tokens=2500)
+            call = await _complete_with_runtime_fallback(
+                resolved, system_prompt, history, user_message, max_tokens=2500
+            )
         except ProviderUnavailableError as exc:
             return _error_response(
                 skill, provider.name, str(exc), timed_out=isinstance(exc, ProviderTimeoutError)
             )
+        result = call.result
 
         content = artifact_skill.extract_artifact_content(result.text)
         if fmt == "html":
@@ -133,7 +190,7 @@ async def run_turn(
             provider=result.provider,
             model=result.model,
             grounded=bool(chunks),
-            fell_back=resolved.fell_back,
+            fell_back=call.fell_back,
             citations=to_citations(chunks),
             artifact={"format": fmt, "content": content},
         )
@@ -147,13 +204,18 @@ async def run_turn(
         )
         system_prompt = ship30_skill.build_system_prompt(user_message, chunks)
         try:
-            result = await provider.complete(
+            call = await _complete_with_runtime_fallback(
+                resolved,
                 system_prompt,
                 history,
                 user_message,
                 max_tokens=3000,
                 timeout_override=settings.ollama_ship30_timeout_seconds,
             )
+            result = call.result
+            # The expansion pass must run on whichever provider actually
+            # served the draft, not the originally-resolved one.
+            provider = call.provider
 
             # No grounding chunks means the model was told to refuse, not to
             # write an essay -- retrying or requirement-checking that refusal
@@ -215,7 +277,7 @@ async def run_turn(
             provider=result.provider,
             model=result.model,
             grounded=bool(chunks),
-            fell_back=resolved.fell_back,
+            fell_back=call.fell_back,
             citations=to_citations(chunks),
             artifact=None,
         )
@@ -229,11 +291,12 @@ async def run_turn(
     )
     system_prompt = qa_skill.build_system_prompt(chunks)
     try:
-        result = await provider.complete(system_prompt, history, user_message)
+        call = await _complete_with_runtime_fallback(resolved, system_prompt, history, user_message)
     except ProviderUnavailableError as exc:
         return _error_response(
             skill, provider.name, str(exc), timed_out=isinstance(exc, ProviderTimeoutError)
         )
+    result = call.result
 
     return AgentResponse(
         text=result.text,
@@ -241,7 +304,7 @@ async def run_turn(
         provider=result.provider,
         model=result.model,
         grounded=bool(chunks),
-        fell_back=resolved.fell_back,
+        fell_back=call.fell_back,
         citations=to_citations(chunks),
         artifact=None,
     )
