@@ -79,6 +79,20 @@ I also pinned the version from PyPI rather than guessing: my first draft wrote `
 
 **What is still unverified, stated plainly:** no Anthropic API key was available, so this path's live round-trip has never been exercised. The tests in `test_claude_agent_provider.py` cover everything that decides whether the path is entered — key present, CLI present, allow-list namespacing, prompt construction — plus the registry's fallback. They do not cover a real call, and this log would be worth less if it implied otherwise.
 
+## 3d. Final audit: four defects found by exercising the running app
+
+A last pass over the deployed stack, looking specifically at the paths that had only ever been checked in the happy direction.
+
+**The cloud fallback only covered half the failure it advertised.** `resolve_provider()` pre-checks configuration, which for the cloud providers means "is a key set at all". A key that exists but is expired, revoked, rate-limited, or paired with a wrong model name passes that check, routes to the cloud, and fails once the request is already in flight — and that is the *most likely* real cloud failure. The README promised "if the key is missing **or a request fails** … automatically falls back to Ollama", but only the missing-key half was implemented; the other half returned "I couldn't reach the language model".
+
+Worth noting how it was found: the no-key case had been demoed repeatedly and looked like proof the fallback worked. It wasn't — it only proved the pre-check worked. Setting a deliberately **invalid** key was what exposed the gap, and it also produced the first real end-to-end exercise of the cloud path: the Claude Agent SDK reached the live API and returned `401 API key is invalid`, confirming the wiring is correct right up to the auth boundary. Fixed with `_complete_with_runtime_fallback`, which retries on Ollama when a non-Ollama provider raises; Ollama's own failures still propagate so there's no retry loop with nothing behind it. Verified live: invalid key → 401 → grounded answer with 4 citations and `fell_back_to_ollama: true`.
+
+**422s violated the documented error contract.** architecture.md states every error is `{error, detail}` with `detail` a string. FastAPI's default validation response is `{"detail": [ {...} ]}` — no `error` key, `detail` a list of objects — and the frontend does `body.detail ?? statusText` straight into its error banner, so any validation failure rendered a stringified object. Added a `RequestValidationError` handler flattening to `"field: message"`.
+
+**The UI was fabricating telemetry.** The chat input showed a hardcoded `1.8k / 8k context` that never changed regardless of conversation length, and the 8k ceiling wasn't even right for llama3.1 (128k). The header's `⚡ Ready` pill was likewise static — it claimed ready even when the active provider was unreachable, on the exact screen where someone checks whether the model is up. Both now show real state (`~292 tokens · 6 msgs`; `⚠ Unavailable — falls back to Ollama`). Invented numbers are bad anywhere, and specifically corrosive in a product whose entire pitch is that it doesn't make things up.
+
+**The test suite had an ordering dependency.** `conftest.py` imported `Base` but never the models, so `Base.metadata` was empty and `create_all()` created nothing. The full suite passed only because some other module imported a model first; running a single file failed with `relation "sessions" does not exist`. One import fixed it — and it's the same class of problem as the earlier skip-masking bug: a suite that only works in one arrangement isn't giving you the signal you think it is.
+
 ## 4. Infrastructure failure: Docker Desktop crash, mid-build
 
 While bringing up `docker compose up -d db backend` for the first real end-to-end test, Docker Desktop crashed with:

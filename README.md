@@ -66,7 +66,7 @@ All variables live in `.env` (copy from `.env.example`; **never commit `.env`**)
 | `OLLAMA_BASE_URL` | yes | `http://host.docker.internal:11434` | Where the backend finds your host's Ollama |
 | `OLLAMA_MODEL` | yes | `llama3.1` | Any model you've pulled |
 | `OLLAMA_TIMEOUT_SECONDS` | no | `600` | Raise if long generations time out on slow hardware |
-| `ANTHROPIC_API_KEY` | no | empty | Leave blank to skip; falls back to Ollama automatically if selected without a key |
+| `ANTHROPIC_API_KEY` | no | empty | Leave blank to skip. Falls back to Ollama if absent **or** if a live request fails (bad/expired key, rate limit) |
 | `ANTHROPIC_MODEL` | no | `claude-opus-5` | |
 | `OPENAI_API_KEY` | no | empty | Same fallback behavior as Anthropic |
 | `OPENAI_MODEL` | no | `gpt-4o-mini` | |
@@ -99,7 +99,7 @@ The Ship 30 skill is genuinely slow on CPU: it generates long-form output and th
 1. Get an Anthropic key at https://console.anthropic.com/settings/keys (or an OpenAI key at https://platform.openai.com/api-keys).
 2. Put it in `.env` as `ANTHROPIC_API_KEY=...` (or `OPENAI_API_KEY=...`).
 3. Either set `LLM_PROVIDER=anthropic` (or `openai`) in `.env`, or leave the default and switch providers live from the model badge dropdown in the UI (`POST /api/config`).
-4. If the key is missing or a request fails, the backend logs a warning and **automatically falls back to Ollama** rather than failing the chat — this is visible in the UI as a banner on the affected response.
+4. If the key is missing **or a live request fails** (expired/revoked key, rate limit, network error, wrong model name), the backend logs a warning and **automatically falls back to Ollama** rather than failing the chat — visible in the UI as a banner on the affected response. Both halves are covered by tests (`test_llm_registry.py` for the config pre-check, `test_runtime_fallback.py` for in-flight failures).
 
 ## Run commands
 
@@ -127,7 +127,7 @@ pip install -r requirements.txt
 pytest
 ```
 
-56 tests, 0 skips. They cover API contracts and error shapes, session/message persistence round-trips, retrieval ranking (including the AND-vs-OR regression and the relevance floor), skill routing, smalltalk handling, provider config switching and fallback, Ollama timeout behavior, the Claude Agent SDK availability/degradation logic, the Ship 30 length/structure gate, and artifact sanitization.
+64 tests, 0 skips. They cover API contracts and error shapes, session/message persistence round-trips, retrieval ranking (including the AND-vs-OR regression and the relevance floor), skill routing, smalltalk handling, provider config switching and fallback, Ollama timeout behavior, the Claude Agent SDK availability/degradation logic, the Ship 30 length/structure gate, and artifact sanitization.
 
 > A note on the skips: this suite previously reported "10 passed, 7 skipped" and looked healthy. The 7 skips were every Postgres-backed test, hidden behind a `except Exception` that reported any setup failure as "database unreachable". Two real bugs were sitting behind it. The fixture now skips only on a genuine `OperationalError`, so **if you see skips, treat them as a problem, not as normal.**
 
@@ -146,6 +146,7 @@ Against a clean `git clone` + `docker compose up --build`, with Ollama/`llama3.1
 | Ship 30 essay | 1,025 words, 6 headings, 7 bullets, takeaway, cited |
 | HTML artifact + XSS attempt | `<script>`, `onclick`, `alert(` all stripped; rendered in `sandbox=""` iframe with CSP `default-src 'none'` |
 | Cloud fallback with no API key | `fell_back_to_ollama: true`, answer still served |
+| Cloud path with an **invalid** key | Claude Agent SDK reached the live API and returned `401 API key is invalid`; turn still answered via Ollama with `fell_back_to_ollama: true` |
 | Frontend production build | Builds clean from a fresh clone |
 
 ## Troubleshooting
