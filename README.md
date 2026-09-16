@@ -146,7 +146,7 @@ Against a clean `git clone` + `docker compose up --build`, with Ollama/`llama3.1
 | Grounded Q&A | Correct answer + inline `(Source: …)` + citation list |
 | Follow-up in session context | Resolved "which of *those* signals" from history |
 | Out-of-corpus question | `grounded: false`, honest refusal, no fabrication |
-| Ship 30 essay | 1,025 words, 6 headings, 7 bullets, takeaway, cited |
+| Ship 30 essay | 1,013 words, 5 `##` headings, 3 bullets, `## The Takeaway`, 4 citations — all rubric checks passing after one expansion pass |
 | HTML artifact + XSS attempt | `<script>`, `onclick`, `alert(` all stripped; rendered in `sandbox=""` iframe with CSP `default-src 'none'` |
 | Cloud fallback with no API key | `fell_back_to_ollama: true`, answer still served |
 | Cloud path with an **invalid** key | Claude Agent SDK reached the live API and returned `401 API key is invalid`; turn still answered via Ollama with `fell_back_to_ollama: true` |

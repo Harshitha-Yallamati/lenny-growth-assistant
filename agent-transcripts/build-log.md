@@ -93,6 +93,25 @@ Worth noting how it was found: the no-key case had been demoed repeatedly and lo
 
 **The test suite had an ordering dependency.** `conftest.py` imported `Base` but never the models, so `Base.metadata` was empty and `create_all()` created nothing. The full suite passed only because some other module imported a model first; running a single file failed with `relation "sessions" does not exist`. One import fixed it — and it's the same class of problem as the earlier skip-masking bug: a suite that only works in one arrangement isn't giving you the signal you think it is.
 
+## 3e. Ship 30: two defects only visible by reading the output
+
+The essay passed its word-count gate and still missed the brief — which is exactly the failure a word count can't see.
+
+**Zero headings, hidden behind a passing word count.** A 1,137-word essay (comfortably inside the 1,000–1,500 band, with bullets, bold, a takeaway and 4 citations) contained **zero** `## ` headings. §4.2 asks for "skimmable formatting with headings, bullets, and selective bold emphasis", so this was non-compliant output that every numeric check waved through. The model was using `**bold lines**` as pseudo-headings instead.
+
+The detection layer was working perfectly the whole time — the logs named the problem on both passes:
+```
+ship30_retrying_draft    : under 1000 words (697); fewer than 4 `## ` headings (0); missing a `## The Takeaway` heading
+ship30_requirements_unmet: fewer than 4 `## ` headings (0); missing a `## The Takeaway` heading
+```
+The retry fired correctly and fixed the length (697 → 1,137); llama3.1 simply ignored the heading instruction twice. The requirements were phrased abstractly ("At least 4 Markdown section headings written as `## Heading`"), and an 8B model follows a concrete template far better than a rule. Replaced with a literal fill-in skeleton with the `## ` markers spelled out, plus an explicit counter to the observed failure mode — *"Bold text is not a heading… the line must literally begin with `## `"* — added to **both** the initial and expansion prompts, since the retry had failed the same way. Headings went **0 → 6**.
+
+**Then the word floor became the binding constraint.** With structure fixed, the next run produced 6 headings but only 905 words. Across runs the pattern was clear: drafts land at 585–697 words against a 1,000-word floor, and a single expansion clears it only about half the time (697 → 1,137 on one run, 633 → 905 on the next). Replaced the single retry with a bounded loop (`SHIP30_MAX_RETRIES`, default 2) that stops as soon as the draft is clean **or** as soon as a pass fails to improve — another identical pass is unlikely to do better, and each costs minutes on CPU.
+
+Final verification run, all four checks green in one shot: draft 585 words with no bulleted list → one expansion → **1,013 words, 5 `## ` headings, 3 bullets, `## The Takeaway`, 4 citations**, and no `ship30_requirements_unmet` line. The loop exited clean without spending its second retry.
+
+Worth being precise about what this is: prompt-level mitigation of a small-model limitation, not a guarantee. The detection layer remains the real safety net — it flags and logs every unmet requirement and ships the best draft rather than looping forever. The README says so plainly, along with the corrected timing (~18–30 min, up to 3 passes — my earlier "~18 minutes, two-pass" figure was invalidated by my own change to the retry budget).
+
 ## 4. Infrastructure failure: Docker Desktop crash, mid-build
 
 While bringing up `docker compose up -d db backend` for the first real end-to-end test, Docker Desktop crashed with:
