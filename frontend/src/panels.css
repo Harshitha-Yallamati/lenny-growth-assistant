@@ -1,0 +1,513 @@
+/* ============================================================
+   Right sidebar (artifact / source preview / artifact history),
+   grounding details, clickable citations, follow-ups, Ship 30 UX.
+
+   Kept separate from App.css so the panel work is easy to review in
+   isolation. Uses the same design tokens defined in App.css :root.
+   ============================================================ */
+
+.right-sidebar {
+  width: 42%;
+  min-width: 340px;
+  max-width: 560px;
+  border-left: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  min-height: 0;
+}
+
+.right-sidebar-tabs {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.right-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  color: var(--text-dim);
+  font-family: var(--font);
+  font-size: 12px;
+  font-weight: 500;
+  padding: 5px 10px;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+}
+
+.right-tab:hover:not(:disabled) {
+  background: var(--surface-hover);
+  color: var(--text);
+}
+
+.right-tab.active {
+  background: var(--accent-dim);
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+.right-tab:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.right-tab-badge {
+  background: var(--surface-hover);
+  color: var(--text-dim);
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 1px 6px;
+  line-height: 1.5;
+}
+
+.right-tab.active .right-tab-badge {
+  background: var(--accent);
+  color: #fff;
+}
+
+.right-sidebar-close {
+  margin-left: auto;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 13px;
+  cursor: pointer;
+  padding: 5px 7px;
+  border-radius: 6px;
+  transition: background 0.12s, color 0.12s;
+}
+
+.right-sidebar-close:hover {
+  background: var(--surface-hover);
+  color: var(--text);
+}
+
+.right-sidebar-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: auto;
+}
+
+.right-empty {
+  color: var(--text-muted);
+  font-size: 12.5px;
+  line-height: 1.6;
+  padding: 24px 20px;
+  text-align: center;
+}
+
+.right-empty strong {
+  color: var(--text-dim);
+  font-weight: 600;
+}
+
+.content-row {
+  position: relative;
+}
+
+.right-sidebar-reopen {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 5;
+  background: var(--surface-alt);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  color: var(--text-dim);
+  font-family: var(--font);
+  font-size: 11.5px;
+  font-weight: 500;
+  padding: 5px 10px;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+}
+
+.right-sidebar-reopen:hover {
+  background: var(--surface-hover);
+  color: var(--text);
+}
+
+/* ---------------- Source preview ---------------- */
+
+.source-preview {
+  padding: 14px 16px 20px;
+}
+
+.source-preview-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 4px;
+}
+
+.source-preview-title {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--text);
+  line-height: 1.4;
+}
+
+.source-preview-link {
+  flex-shrink: 0;
+  font-size: 11.5px;
+  color: var(--accent);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.source-preview-link:hover {
+  text-decoration: underline;
+}
+
+.source-preview-meta {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin: 6px 0 12px;
+}
+
+.source-excerpt-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.source-excerpt {
+  display: flex;
+  gap: 10px;
+  background: var(--surface-alt);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+
+.source-excerpt-index {
+  flex-shrink: 0;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  padding-top: 2px;
+}
+
+.source-excerpt-text {
+  font-size: 12.5px;
+  line-height: 1.65;
+  color: var(--text-dim);
+  white-space: pre-wrap;
+}
+
+/* ---------------- Artifact history ---------------- */
+
+.artifact-history {
+  list-style: none;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.artifact-history-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  padding: 9px 10px;
+  cursor: pointer;
+  text-align: left;
+  font-family: var(--font);
+  transition: background 0.12s, border-color 0.12s;
+}
+
+.artifact-history-item:hover {
+  background: var(--surface-hover);
+}
+
+.artifact-history-item.active {
+  background: var(--accent-dim);
+  border-color: var(--accent);
+}
+
+.artifact-type-chip {
+  flex-shrink: 0;
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  border-radius: 5px;
+  padding: 3px 6px;
+  font-family: var(--font-mono);
+}
+
+.artifact-type-html {
+  background: rgba(242, 112, 89, 0.18);
+  color: var(--accent);
+}
+
+.artifact-type-markdown {
+  background: var(--success-dim);
+  color: var(--success);
+}
+
+.artifact-history-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.artifact-history-title {
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--text);
+}
+
+.artifact-history-meta {
+  font-size: 10.5px;
+  color: var(--text-muted);
+}
+
+/* ---------------- Grounding details + citations ---------------- */
+
+.grounding-toggle {
+  background: none;
+  border: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.grounding-toggle:hover {
+  text-decoration: underline;
+}
+
+.grounding-caret {
+  font-size: 9px;
+  opacity: 0.8;
+}
+
+.grounding-panel {
+  margin: 6px 0 2px;
+  background: var(--surface-alt);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+
+.grounding-panel-title {
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+}
+
+.grounding-panel-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.grounding-panel-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: none;
+  border: none;
+  border-radius: 6px;
+  padding: 6px 7px;
+  cursor: pointer;
+  text-align: left;
+  font-family: var(--font);
+  color: var(--text-dim);
+  transition: background 0.12s, color 0.12s;
+}
+
+.grounding-panel-item:hover {
+  background: var(--surface-hover);
+  color: var(--text);
+}
+
+.grounding-panel-item-title {
+  flex: 1;
+  font-size: 12px;
+  min-width: 0;
+}
+
+.grounding-panel-item-action {
+  flex-shrink: 0;
+  font-size: 10.5px;
+  color: var(--accent);
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+
+.grounding-panel-item:hover .grounding-panel-item-action {
+  opacity: 1;
+}
+
+.citation-card-clickable {
+  border: 1px solid transparent;
+  cursor: pointer;
+  font-family: var(--font);
+  text-align: left;
+  transition: background 0.12s, border-color 0.12s;
+}
+
+.citation-card-clickable:hover {
+  background: var(--surface-hover);
+  border-color: var(--border);
+}
+
+.citation-hint {
+  font-size: 10.5px;
+  color: var(--accent);
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+
+.citation-card-clickable:hover .citation-hint {
+  opacity: 1;
+}
+
+/* ---------------- Message actions + Ship 30 UX ---------------- */
+
+.message-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.message-copy-btn {
+  background: var(--surface-alt);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  color: var(--text-dim);
+  font-family: var(--font);
+  font-size: 11.5px;
+  font-weight: 500;
+  padding: 5px 10px;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+}
+
+.message-copy-btn:hover {
+  background: var(--surface-hover);
+  color: var(--text);
+}
+
+.message-skill-chip {
+  font-size: 10px;
+  font-weight: 600;
+  background: var(--accent-dim);
+  color: var(--accent);
+  border-radius: 5px;
+  padding: 2px 6px;
+}
+
+.mode-banner {
+  margin: 0 20px 8px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.mode-banner strong {
+  font-weight: 600;
+}
+
+.mode-banner-ship30 {
+  background: var(--accent-glow);
+  border: 1px solid var(--accent-dim);
+  color: var(--text-dim);
+}
+
+.mode-banner-artifact {
+  background: var(--success-dim);
+  border: 1px solid var(--success-border);
+  color: var(--text-dim);
+}
+
+.pending-hint {
+  display: block;
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 4px;
+  line-height: 1.5;
+  max-width: 460px;
+}
+
+/* ---------------- Suggested follow-ups ---------------- */
+
+.followups {
+  margin: 4px 0 2px;
+  align-self: flex-start;
+  max-width: 760px;
+}
+
+.followups-label {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 7px;
+}
+
+.followups-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.followup-chip {
+  background: var(--surface-alt);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--text-dim);
+  font-family: var(--font);
+  font-size: 12px;
+  padding: 6px 12px;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+}
+
+.followup-chip:hover {
+  background: var(--accent-dim);
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+/* ---------------- Narrow screens ---------------- */
+
+@media (max-width: 900px) {
+  .right-sidebar {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    max-width: none;
+    z-index: 30;
+  }
+}

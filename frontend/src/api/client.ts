@@ -6,6 +6,7 @@ import type {
   SessionSummary,
   Skill,
   ArtifactFormat,
+  SourceDetail,
 } from "../types";
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
@@ -73,6 +74,9 @@ export const api = {
         artifact_format: artifactFormat ?? null,
       }),
     }),
+
+  getSource: (title: string) =>
+    request<SourceDetail>(`/api/sources?title=${encodeURIComponent(title)}`),
 
   getConfig: () => request<ConfigPayload>("/api/config"),
 

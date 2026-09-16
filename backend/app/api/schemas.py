@@ -65,3 +65,15 @@ class ConfigResponse(BaseModel):
 
 class ConfigUpdateRequest(BaseModel):
     provider: Literal["ollama", "anthropic", "openai"]
+
+
+class SourceExcerpt(BaseModel):
+    chunk_index: int
+    content: str
+
+
+class SourceDetailResponse(BaseModel):
+    title: str
+    url: str | None
+    total_chunks: int
+    excerpts: list[SourceExcerpt]

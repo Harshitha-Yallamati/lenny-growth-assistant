@@ -9,6 +9,8 @@ interface Props {
   fellBack: boolean;
   onSend: (message: string, skill: Skill | undefined, artifactFormat: ArtifactFormat | undefined) => void;
   onOpenArtifact: (message: ChatMessage) => void;
+  onOpenCitation: (title: string) => void;
+  followUps: string[];
   onNewSession: () => void;
 }
 
@@ -27,7 +29,17 @@ const QUICK_PROMPTS = [
   { label: "✏️ Create Artifact", value: "artifact-html" as SkillChoice, placeholder: "Generate an interactive HTML artifact for…" },
 ];
 
-export function ChatPane({ session, sending, error, fellBack, onSend, onOpenArtifact, onNewSession }: Props) {
+export function ChatPane({
+  session,
+  sending,
+  error,
+  fellBack,
+  onSend,
+  onOpenArtifact,
+  onOpenCitation,
+  followUps,
+  onNewSession,
+}: Props) {
   const [input, setInput] = useState("");
   const [skillChoice, setSkillChoice] = useState<SkillChoice>("auto");
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -117,7 +129,12 @@ export function ChatPane({ session, sending, error, fellBack, onSend, onOpenArti
 
         {/* Messages */}
         {session?.messages.map((m) => (
-          <MessageBubble key={m.id} message={m} onOpenArtifact={onOpenArtifact} />
+          <MessageBubble
+            key={m.id}
+            message={m}
+            onOpenArtifact={onOpenArtifact}
+            onOpenCitation={onOpenCitation}
+          />
         ))}
 
         {/* Thinking Indicator */}
@@ -133,10 +150,45 @@ export function ChatPane({ session, sending, error, fellBack, onSend, onOpenArti
                 <div className="thinking-dot" />
                 <div className="thinking-dot" />
               </div>
-              Thinking…
+              {skillChoice === "ship30" ? (
+                <span>
+                  Writing a ~1,250-word Ship 30 essay…
+                  <span className="pending-hint">
+                    Drafts, then expands until it meets the rubric. On a local 8B model this
+                    takes several minutes — the tab can be left open.
+                  </span>
+                </span>
+              ) : (
+                "Thinking…"
+              )}
             </div>
           </div>
         )}
+        {/* Suggested follow-ups — only after a grounded answer, and only when
+            we're not mid-generation. Derived from the cited episodes, so every
+            suggestion points at something the corpus can actually answer. */}
+        {!sending && followUps.length > 0 && (
+          <div className="followups">
+            <div className="followups-label">Suggested follow-ups</div>
+            <div className="followups-list">
+              {followUps.map((q) => (
+                <button
+                  key={q}
+                  type="button"
+                  className="followup-chip"
+                  onClick={() => {
+                    if (!session || sending) return;
+                    const isEssay = /ship 30|essay/i.test(q);
+                    onSend(q, isEssay ? "ship30" : undefined, undefined);
+                  }}
+                >
+                  {q}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
         <div ref={scrollRef} />
       </div>
 
@@ -147,6 +199,20 @@ export function ChatPane({ session, sending, error, fellBack, onSend, onOpenArti
         </div>
       )}
       {error && <div className="chat-banner chat-banner-error">⚠ {error}</div>}
+
+      {skillChoice === "ship30" && (
+        <div className="mode-banner mode-banner-ship30">
+          🚢 <strong>Ship 30 mode</strong> — the next message writes a ~1,250-word essay with
+          headings, bullets and citations. Expect several minutes on a local model.
+        </div>
+      )}
+      {(skillChoice === "artifact-html" || skillChoice === "artifact-markdown") && (
+        <div className="mode-banner mode-banner-artifact">
+          ✏️ <strong>Artifact mode</strong> — the next message generates a{" "}
+          {skillChoice === "artifact-html" ? "sandboxed HTML page" : "Markdown document"} in the
+          right panel.
+        </div>
+      )}
 
       {/* Input Area */}
       <div className="chat-input-area">

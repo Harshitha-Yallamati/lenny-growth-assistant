@@ -5,7 +5,6 @@ import type { Artifact } from "../types";
 
 interface Props {
   artifact: Artifact | null;
-  onClose: () => void;
 }
 
 type ArtifactTab = "preview" | "code" | "markdown";
@@ -22,7 +21,7 @@ type ArtifactTab = "preview" | "code" | "markdown";
  * loosened later. Markdown artifacts render through react-markdown without
  * rehype-raw, so embedded raw HTML is displayed as inert text, never parsed.
  */
-export function ArtifactViewer({ artifact, onClose }: Props) {
+export function ArtifactViewer({ artifact }: Props) {
   const [tab, setTab] = useState<ArtifactTab>("preview");
 
   const srcDoc = useMemo(() => {
@@ -107,14 +106,6 @@ export function ArtifactViewer({ artifact, onClose }: Props) {
           </button>
           <button className="artifact-action-btn" onClick={handleDownload} title="Download">
             ⬇
-          </button>
-          <button
-            className="artifact-action-btn"
-            onClick={onClose}
-            title="Close artifact viewer"
-            aria-label="Close artifact viewer"
-          >
-            ✕
           </button>
         </div>
       </div>

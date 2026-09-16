@@ -41,6 +41,29 @@ export interface ChatResponsePayload {
   fell_back_to_ollama: boolean;
 }
 
+export interface SourceExcerpt {
+  chunk_index: number;
+  content: string;
+}
+
+export interface SourceDetail {
+  title: string;
+  url: string | null;
+  total_chunks: number;
+  excerpts: SourceExcerpt[];
+}
+
+/** An artifact plus the message it came from, for the history list. */
+export interface ArtifactHistoryEntry {
+  messageId: string;
+  artifact: Artifact;
+  title: string;
+  createdAt: string;
+}
+
+/** What the right sidebar is currently showing. */
+export type RightPanelView = "artifact" | "source" | "history";
+
 export interface ConfigPayload {
   active_provider: Provider;
   configured_default: Provider;

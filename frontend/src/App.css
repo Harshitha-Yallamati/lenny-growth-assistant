@@ -1074,10 +1074,8 @@ body {
    ============================================================ */
 
 .artifact-viewer {
-  width: 42%;
-  min-width: 340px;
-  max-width: 560px;
-  border-left: 1px solid var(--border);
+  flex: 1;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   background: var(--surface);

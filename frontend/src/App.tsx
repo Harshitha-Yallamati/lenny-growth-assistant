@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
 import "./App.css";
+import "./panels.css";
 import { api, ApiError } from "./api/client";
-import { ArtifactViewer } from "./components/ArtifactViewer";
 import { ChatPane } from "./components/ChatPane";
+import { RightSidebar } from "./components/RightSidebar";
 import { ModelBadge } from "./components/ModelBadge";
 import { SessionSidebar } from "./components/SessionSidebar";
 import type {
@@ -13,7 +14,11 @@ import type {
   SessionDetail,
   SessionSummary,
   Skill,
+  ArtifactHistoryEntry,
+  RightPanelView,
+  SourceDetail,
 } from "./types";
+import { suggestFollowUps } from "./followups";
 
 const CLIENT_ID_KEY = "lenny-growth-assistant-client-id";
 
@@ -35,6 +40,14 @@ export default function App() {
   const [fellBack, setFellBack] = useState(false);
   const [openArtifactMessage, setOpenArtifactMessage] = useState<ChatMessage | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  // Right panel: artifact viewer / citation source preview / artifact history
+  const [rightOpen, setRightOpen] = useState(false);
+  const [rightView, setRightView] = useState<RightPanelView>("artifact");
+  const [sourceTitle, setSourceTitle] = useState<string | null>(null);
+  const [source, setSource] = useState<SourceDetail | null>(null);
+  const [sourceLoading, setSourceLoading] = useState(false);
+  const [sourceError, setSourceError] = useState<string | null>(null);
 
   const refreshSessions = useCallback(async () => {
     try {
@@ -139,6 +152,42 @@ export default function App() {
     []
   );
 
+  // Artifact history for the open conversation, newest first. Derived from
+  // messages already loaded -- no extra requests.
+  const artifactHistory: ArtifactHistoryEntry[] = (activeSession?.messages ?? [])
+    .filter((m) => m.artifact)
+    .map((m, idx, arr) => ({
+      messageId: m.id,
+      artifact: m.artifact!,
+      title: `${m.artifact!.format === "html" ? "HTML page" : "Markdown doc"} #${arr.length - idx}`,
+      createdAt: m.created_at,
+    }))
+    .reverse();
+
+  const followUps = suggestFollowUps(activeSession?.messages ?? []);
+
+  const openArtifact = useCallback((message: ChatMessage) => {
+    setOpenArtifactMessage(message);
+    setRightView("artifact");
+    setRightOpen(true);
+  }, []);
+
+  const openCitation = useCallback(async (title: string) => {
+    setSourceTitle(title);
+    setRightView("source");
+    setRightOpen(true);
+    setSourceLoading(true);
+    setSourceError(null);
+    setSource(null);
+    try {
+      setSource(await api.getSource(title));
+    } catch (e) {
+      setSourceError(e instanceof ApiError ? e.message : "Failed to load source excerpts.");
+    } finally {
+      setSourceLoading(false);
+    }
+  }, []);
+
   const sessionTitle = activeSession?.title || (activeSession ? "New conversation" : null);
 
   return (
@@ -192,13 +241,38 @@ export default function App() {
             error={error}
             fellBack={fellBack}
             onSend={handleSend}
-            onOpenArtifact={setOpenArtifactMessage}
+            onOpenArtifact={openArtifact}
+            onOpenCitation={openCitation}
+            followUps={followUps}
             onNewSession={handleNewSession}
           />
-          {openArtifactMessage?.artifact && (
-            <ArtifactViewer
-              artifact={openArtifactMessage.artifact}
-              onClose={() => setOpenArtifactMessage(null)}
+
+          {!rightOpen && (artifactHistory.length > 0 || activeSession) && (
+            <button
+              className="right-sidebar-reopen"
+              onClick={() => setRightOpen(true)}
+              title="Open the artifact and source panel"
+            >
+              ◧ Panel
+            </button>
+          )}
+
+          {rightOpen && (
+            <RightSidebar
+              view={rightView}
+              onChangeView={setRightView}
+              onClose={() => setRightOpen(false)}
+              artifact={openArtifactMessage?.artifact ?? null}
+              sourceTitle={sourceTitle}
+              source={source}
+              sourceLoading={sourceLoading}
+              sourceError={sourceError}
+              history={artifactHistory}
+              activeHistoryId={openArtifactMessage?.id ?? null}
+              onOpenHistoryEntry={(entry) => {
+                const msg = (activeSession?.messages ?? []).find((m) => m.id === entry.messageId);
+                if (msg) openArtifact(msg);
+              }}
             />
           )}
         </div>

@@ -11,7 +11,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from app.api import chat, config, health, sessions
+from app.api import chat, config, health, sessions, sources
 from app.core.config import get_settings
 from app.core.logging import configure_logging
 from app.db.base import Base
@@ -95,3 +95,4 @@ app.include_router(health.router)
 app.include_router(sessions.router)
 app.include_router(chat.router)
 app.include_router(config.router)
+app.include_router(sources.router)
